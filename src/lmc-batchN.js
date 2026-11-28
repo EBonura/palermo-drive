@@ -1,5 +1,5 @@
 // City landmarks, batch N: Chiesa di Santa Venera (w279885668), Santa Maria dei Naufraghi (w232901239), Chiesa di Santa Rosalia (w278478111). Registered in src/landmarks-city.js.
-// Santa Lucia Vergine Maria (w82636565) is NOT built: no photo of its exterior exists on Wikimedia Commons or Wikipedia, so it stays generic (not drawn from guesses).
+// Santa Lucia Vergine Maria (w82636565) is not in this batch: no photo of its exterior is on Wikimedia Commons or Wikipedia. It was built later, from photos found elsewhere, in src/lmc-batchR.js.
 // Each church has its own frame F: origin on the ground in the middle of the front, +z out of the front, local x along the front (to the right seen from outside). The front edge was chosen from the footprint and the streets.
 // Reference photos (Wikimedia Commons, looked at, nothing copied; only proportions and colours were read):
 // Santa Venera: Santa Venera facciata.jpg (the front, from the left: tuff ashlar, corner pilasters with projecting blocks, urn on the left corner, recessed panels, one door with a segmental pediment on consoles, a bold cornice, a narrower plastered attic with an arched window and a curved top);
@@ -263,7 +263,7 @@ function buildRosalia() {
   prism('bnroWall', body, Math.min(gr.lo, y0) - 1.5, y0 + R_EAVE, { uvo: [0, -y0 / R_EAVE] });
   prism('flat', body, y0 + R_EAVE, y0 + R_EAVE + 0.12, { c: '#a39a8c' });
   gable('tile', 'bnroWall', at(0, 0, -9.3), 9.6, 17.6, R_EAVE, R_RISE, { ov: 0.3, c: '#b0704c', wc: '#d79a68' });
-  bx('flat', F, -5.1, 5.1, R_EAVE, R_EAVE + 0.3, -0.1, -17.8, { c: '#ddd2ba', noao: true });
+  bx('flat', F, -5.1, 5.1, R_EAVE, R_EAVE + 0.25, -0.1, -17.8, { c: '#ddd2ba', noao: true });   // (no taller than this, or its edges show through the roof along the eaves)
   const s = new THREE.Shape(), hw = R_FW / 2;
   s.moveTo(-hw, 0); s.lineTo(hw, 0); s.lineTo(hw, R_WING); s.lineTo(2.85, R_WING); s.lineTo(2.85, R_BASE); s.lineTo(0, R_APEX); s.lineTo(-2.85, R_BASE); s.lineTo(-2.85, R_WING); s.lineTo(-hw, R_WING); s.lineTo(-hw, 0);
   extrude('bnroFront', s, 1.0, { M: at(0, 0, -1.05), uv: 'keep', uvk: [1 / R_FW, 1 / R_FH], uvo: [0.5, 0], cs: 8, noao: true });

@@ -5,13 +5,16 @@
 //   an inscription frieze, a narrower attic with a big arched window, white panels, side scrolls (volutes) and a triangular pediment with a cross. Front is the 29.8 m run of the outline on the street to the west.
 // San Mattia ai Crociferi: San Mattia facciata.jpg; San Mattia ai Crociferi, Palermo.jpg; San Mattia ai Crociferi (Palermo) 14 07 2024 01.jpg. Golden tufa stone with white plaster panels, two orders: a central portal with a broken pediment between paired pilasters,
 //   a framed window each side and a small door at each end, a dentil cornice; upper order with a round window in an oval frame, a framed window each side, a triangular pediment with finials; to the right a lower plain annex of the seminary in two floors of arched windows.
-// Sant'Antonio abate: Chiesa di Sant'Antonio Abate (Palermo) - facciata1.JPG; facciata2.JPG; esterno3.JPG. Gothic Revival front in sandy stone, two orders: three pointed portals (the middle one big, two statues on pedestals), a rose window with a small statue under it
-//   and a pointed window each side in the upper order, pilaster strips, a flat parapet with a cross; a stone bell tower stands behind on the right. A balustraded terrace in front (not drawn).
+// Sant'Antonio abate: Chiesa di Sant'Antonio Abate (Palermo) - facciata1.JPG; facciata2.JPG; esterno1.JPG; esterno2.JPG; esterno3.JPG; 24 06 2023 01.jpg; SAA (Palermo) 14 07 2019 01.jpg. Gothic Revival front in sandy stone on the west side, towards Via Roma,
+//   two orders: three pointed portals (the middle one big, two statues on pedestals), a rose window with a small statue under it and a pointed window each side in the upper order, pilaster strips, a flat parapet with a cross.
+//   It stands on a terrace with a pierced stone balustrade over a retaining wall with a shop opening, a stair coming down at the right end. The square stone bell tower (clock, shuttered arched window, open belfry with corner piers
+//   and an iron frame) stands behind on the right, on the mapped outline w279883860, which it replaces. The terrace is set inside the church outline so collision does not change: it is lower and shallower than the real one,
+//   and the stair is only drawn on the wall.
 // Santa Maria di Valverde: Palermo-Maria-Valverde-bjs2007-01.jpg; Santa Maria in Valverde esterno.jpg; Santa Maria in Valverde (Palermo) 25 10 2020 01.jpg. Pink plastered flank (the long south wall) with a grey stone baroque portal (volutes, a shield),
 //   two arched windows high up, a cream corner block with painted red pilasters on the right, a stone bell tower at the west end (the small west outline).
-// Not known and not drawn: the roofs behind the fronts (tiles assumed), the side and rear walls (plain), the Tolentino nave width (read off the attic), the Valverde tower height (read off the 2007 photo), the staircase terrace of Sant'Antonio.
+// Not known and not drawn: the roofs behind the fronts (tiles assumed; Sant'Antonio flat), the side and rear walls (plain; Sant'Antonio's flank windows read off its south side), the Tolentino nave width (read off the attic), the Valverde tower height (read off the 2007 photo).
 import * as THREE from 'three';
-import { PI, bx, sphere, extrude, prism, begin, end, defMat, mul, tr, rotY, frame, groundY, initShared, noiseDots, streaks, pairsOf, groundRange, gable, statue } from './lmc-kit.js';
+import { PI, bx, sphere, extrude, prism, panel, begin, end, defMat, mul, tr, rotY, frame, groundY, initShared, noiseDots, streaks, pairsOf, groundRange, gable, statue, archShape } from './lmc-kit.js';
 
 // ---------- shared helpers ----------
 const mk = (O, N) => ({
@@ -64,13 +67,14 @@ function buildChurch(S) {
   const F = frame(S.O[0], y0, S.O[1], S.N[0], S.N[1]), at = (x, y, z) => mul(F, tr(x, y, z));
   const hFront = Math.round(384 * S.FH / S.FW);
   defMat(S.pre + 'Front', 384, hFront, [S.FW, S.FH], S.paint);
-  defMat(S.pre + 'Body', 128, 256, [4.5, S.EAVE], (g, w, h) => paintWall(g, w, h, S.EAVE, false, S.seed, S.C));
-  defMat(S.pre + 'Nave', 128, 256, [4.5, S.NT - S.EAVE], (g, w, h) => paintWall(g, w, h, S.NT - S.EAVE, true, S.seed + 10, S.C));
+  defMat(S.pre + 'Body', 128, 256, [4.5, S.EAVE], S.side || ((g, w, h) => paintWall(g, w, h, S.EAVE, false, S.seed, S.C)));
+  if (S.nave) defMat(S.pre + 'Nave', 128, 256, [4.5, S.NT - S.EAVE], (g, w, h) => paintWall(g, w, h, S.NT - S.EAVE, true, S.seed + 10, S.C));
   begin(y0);
-  const body = clipFront(fr, pts, -0.1);
+  const back = S.back || 0, up = S.up || 0;   // a front set back from the outline and standing on a terrace
+  const body = clipFront(fr, pts, -0.1 - back);
   prism(S.pre + 'Body', body, Math.min(gr.lo, y0) - 1.5, y0 + S.EAVE, { uvo: [0, -y0 / S.EAVE] });
   prism('flat', body, y0 + S.EAVE, y0 + S.EAVE + 0.12, { c: '#a39a8c' });
-  const solids = [[S.p, null, y0 + S.EAVE]];
+  const solids = [[back ? body.flat() : S.p, null, y0 + S.EAVE]];
   if (S.nave) {
     const n = S.nave;
     bx(S.pre + 'Nave', F, n.x0, n.x1, S.EAVE, S.NT, n.z0, n.z1, { uvo: [0, -(y0 + S.EAVE) / (S.NT - S.EAVE)] });
@@ -79,7 +83,7 @@ function buildChurch(S) {
     solids.push([ring, null, y0 + S.NT + n.rise]);
   }
   const hw = S.FW / 2, s = new THREE.Shape(); S.shape(s, hw);
-  extrude(S.pre + 'Front', s, 1.3, { M: at(0, 0, -1.35), uv: 'keep', uvk: [1 / S.FW, 1 / S.FH], uvo: [0.5, 0], cs: 8, noao: true });
+  extrude(S.pre + 'Front', s, 1.3, { M: at(0, up, -1.35 - back), uv: 'keep', uvk: [1 / S.FW, 1 / S.FH], uvo: [0.5, 0], cs: 8, noao: true });
   S.extra({ F, at, y0, W, hw, solids });
   const o = end(S.name);
   o.userData.solids = solids;
@@ -214,59 +218,141 @@ function buildMattia() {
 }
 
 // =====================================================================================================
-// 3. Sant'Antonio abate (front south, 18.7 m, Gothic Revival; stone bell tower behind on the right)
+// 3. Sant'Antonio abate (front west towards Via Roma, 18.9 m, Gothic Revival, on a balustraded terrace; stone bell tower behind on the right)
 // =====================================================================================================
-const AN = { id: 'w49864836', p: [196.7, -158.9, 203.8, -141.4, 212.5, -144.8, 221.2, -148.4, 217, -158.9, 216.2, -160.8, 214.1, -165.9] };
-const AFW = 18.7, AFH = 14.0, ALOW = 6.6, AUP = 12.2;
-const AC = { wall: '#d2b788', stn: '#b99a68', hi: '#cdb284' };
+const AN = { id: 'w49864836', tower: 'w279883860', p: [196.7, -158.9, 203.8, -141.4, 212.5, -144.8, 221.2, -148.4, 217, -158.9, 216.2, -160.8, 214.1, -165.9] };
+const AN_O = [200.25, -150.15], AN_N = [-0.927, 0.376];
+const AN_TOWER = [221.2, -148.4, 222.9, -144.0, 223.4, -142.8, 214.4, -140.8, 212.5, -144.8];
+// heights above the street: the terrace floor, then above it the string course, the upper cornice and the parapet top; AN_BACK is how far the front stands behind the terrace wall
+const AFW = 18.9, AFH = 13.0, ALOW = 6.5, AUP = 11.4, APAR = 12.6, AN_UP = 3.4, AN_BACK = 2.6;
+const AC = { wall: '#c9b08a', stn: '#a98d66', hi: '#d8c298' };
+const AN_PORT = [[0, 3.1, 5.1], [-6.2, 2.2, 4.4], [6.2, 2.2, 4.4]];   // [x, width, apex] of the doors
+const AN_WIN = [[-5.8, 1.75, 7.0, 9.9], [5.8, 1.75, 7.0, 9.9]];   // [x, width, sill, apex]
 function paintAnt(g, w, h) {
   const { X, Y, sx, sy, R, point, circ } = tools(g, w, h, AFW, AFH);
-  const ST = '#cdb07e', STH = '#dcc394', STD = '#9a7e52', GL = '#26303a', DK = '#34261c';
+  const ST = '#cdb384', STH = '#dfcaa0', STD = '#8f744d', DOOR = '#5c2e28';
   g.fillStyle = ST; g.fillRect(0, 0, w, h);
-  noiseDots(g, w, h, w * h / 25, 2, 7301, ['rgba(120,90,50,0.16)', 'rgba(240,225,180,0.16)', 'rgba(90,65,35,0.12)']);
-  for (let y = 0.6; y < AUP + 1.4; y += 0.55) R(-AFW / 2, y, AFW / 2, y + 0.05, 'rgba(80,60,30,0.3)');
-  for (let y = 0.6, r = 0; y < AUP + 1.4; y += 0.55, r++) for (let x = -AFW / 2 + (r % 2) * 0.9; x < AFW / 2; x += 1.8) R(x, y, x + 0.04, y + 0.55, 'rgba(80,60,30,0.2)');
-  R(-AFW / 2, 0, AFW / 2, 0.6, '#8a7656');
-  // pilaster strips (flat, slightly lighter, with a dark slot) and the two string courses
-  for (const x of [-8.7, -4.3, 4.3, 8.7]) { R(x - 0.5, 0, x + 0.5, AUP, STH); R(x - 0.18, 0.8, x + 0.18, ALOW - 0.9, STD); if (Math.abs(x) > 5) R(x - 0.18, ALOW + 1.0, x + 0.18, AUP - 0.9, STD); }
-  R(-AFW / 2, ALOW - 0.35, AFW / 2, ALOW + 0.25, STH); R(-AFW / 2, ALOW - 0.35, AFW / 2, ALOW - 0.25, 'rgba(60,40,20,0.4)');
-  R(-AFW / 2, AUP - 0.5, AFW / 2, AUP + 0.45, STH); for (let x = -AFW / 2; x < AFW / 2; x += 0.9) R(x, AUP - 0.35, x + 0.4, AUP - 0.1, 'rgba(60,40,20,0.35)');
-  // lower portals, pointed: the middle one big with a tracery fan, the two sides smaller
-  const portal = (x, ww, hh) => { point(x, 0.6, hh + 0.6, ww + 1.1, STH); point(x, 0.6, hh + 0.4, ww + 0.5, STD); point(x, 0.6, hh, ww, DK); };
-  portal(0, 2.6, 4.8); portal(-6.6, 1.9, 3.6); portal(6.6, 1.9, 3.6);
-  g.strokeStyle = 'rgba(190,170,130,0.9)'; g.lineWidth = Math.max(1, sx * 0.07); for (let i = -3; i <= 3; i++) { g.beginPath(); g.moveTo(X(0), Y(4.3)); g.lineTo(X(i * 0.34), Y(5.1)); g.stroke(); }
-  R(-0.04, 0.6, 0.04, 3.4, '#241810'); for (const x of [-6.6, 6.6]) R(x - 0.04, 0.6, x + 0.04, 2.6, '#241810');
-  // upper order: the rose window with a small statue under it, a pointed window each side
-  circ(0, 9.6, 1.5, STH); circ(0, 9.6, 1.2, STD); circ(0, 9.6, 1.0, '#3a3430'); g.strokeStyle = 'rgba(200,185,150,0.95)'; g.lineWidth = Math.max(1, sx * 0.08);
-  for (let i = 0; i < 8; i++) { const a = i / 8 * 2 * PI; g.beginPath(); g.moveTo(X(0), Y(9.6)); g.lineTo(X(Math.cos(a) * 1.0), Y(9.6 + Math.sin(a) * 1.0)); g.stroke(); }
-  circ(0, 9.6, 0.5, '#d8cdb0'); R(-0.12, 7.2, 0.12, 8.0, '#e6e0d0'); circ(0, 8.2, 0.14, '#e6e0d0');
-  for (const x of [-6.5, 6.5]) { point(x, 7.8, 11.4, 2.0, STH); point(x, 7.9, 11.3, 1.6, STD); point(x, 8.0, 11.1, 1.3, GL); R(x - 0.04, 8.0, x + 0.04, 10.4, '#6b5a40'); R(x - 0.5, 9.2, x + 0.5, 9.26, '#6b5a40'); }
-  // the parapet: three plain panels
-  for (const x of [-6.5, 0, 6.5]) R(x - 2.4, AUP + 0.55, x + 2.4, AUP + 1.2, 'rgba(110,80,45,0.3)');
-  softShadow(g, w, h, Y, sy, [ALOW + 0.2, AUP + 0.45], 0.3); streaks(g, w, h, 26, 7302, 0.1, 100, '70,50,35'); groundShadow(g, w, h, Y, sy);
+  const r = (n) => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
+  // big blocks of sandstone, each its own tone
+  for (let y = 0, k = 0; y < AFH; y += 0.62, k++) for (let x = -AFW / 2 - (k % 2) * 0.8, i = 0; x < AFW / 2; x += 1.6, i++) {
+    const v = r(k * 31 + i * 7 + 3); R(x, y, x + 1.58, y + 0.6, v < 0.3 ? 'rgba(235,210,160,0.45)' : v < 0.52 ? 'rgba(140,105,65,0.28)' : v < 0.6 ? 'rgba(120,110,95,0.3)' : 'rgba(0,0,0,0)');
+    R(x, y, x + 0.04, y + 0.62, 'rgba(80,60,30,0.22)'); R(x, y, x + 1.6, y + 0.04, 'rgba(80,60,30,0.28)');
+  }
+  noiseDots(g, w, h, w * h / 30, 2, 7301, ['rgba(120,90,50,0.14)', 'rgba(245,230,190,0.14)']);
+  // pilaster strips with their long sunk panels
+  for (const x of [-8.55, -3.1, 3.1, 8.55]) for (const [a, b] of [[1.2, ALOW - 0.7], [ALOW + 0.5, AUP - 0.55]]) { R(x - 0.6, a - 0.5, x + 0.6, b + 0.4, 'rgba(225,205,160,0.35)'); R(x - 0.36, a, x + 0.36, b, STD); R(x - 0.27, a + 0.08, x + 0.3, b - 0.08, '#d6bf90'); }
+  R(-AFW / 2, ALOW - 0.3, AFW / 2, ALOW + 0.2, STH); R(-AFW / 2, ALOW - 0.45, AFW / 2, ALOW - 0.3, 'rgba(60,40,20,0.45)');
+  R(-AFW / 2, AUP - 0.35, AFW / 2, AUP + 0.25, STH); R(-AFW / 2, AUP - 0.5, AFW / 2, AUP - 0.35, 'rgba(60,40,20,0.45)');
+  for (const x of [-5.8, 0, 5.8]) { R(x - 2.0, AUP + 0.45, x + 2.0, APAR - 0.2, 'rgba(120,90,55,0.22)'); }
+  // the portals: three orders of pointed archivolt, colonnettes, a panelled reddish door; tracery over the middle one
+  for (const [x, ww, apex] of AN_PORT) {
+    point(x, 0, apex + 0.75, ww + 1.2, STH); point(x, 0, apex + 0.5, ww + 0.8, STD); point(x, 0, apex + 0.25, ww + 0.45, '#cbb184'); point(x, 0, apex, ww, '#33201a');
+    const dw = ww * 0.72, dh = apex - ww * 0.75;
+    R(x - dw / 2, 0, x + dw / 2, dh, DOOR); R(x - 0.035, 0, x + 0.035, dh, '#241210');
+    for (let y = 0.35; y < dh - 0.45; y += 0.62) for (const s of [-1, 1]) for (const q of [0.14, 0.34]) { R(x + s * dw * q - 0.12, y, x + s * dw * q + 0.12, y + 0.42, 'rgba(20,6,4,0.35)'); R(x + s * dw * q - 0.07, y + 0.3, x + s * dw * q + 0.07, y + 0.4, 'rgba(255,190,160,0.14)'); }
+    R(x - dw / 2 - 0.1, dh, x + dw / 2 + 0.1, dh + 0.18, STH);
+    for (const s of [-1, 1]) for (const q of [0.08, 0.3]) { const cx = x + s * (ww / 2 + q); R(cx - 0.07, 0, cx + 0.07, apex - ww * 0.62, '#e2d0a8'); R(cx - 0.12, apex - ww * 0.62 - 0.22, cx + 0.12, apex - ww * 0.62, STD); }
+    if (!x) { g.strokeStyle = '#cdb384'; g.lineWidth = Math.max(1, sx * 0.09); for (let i = -3; i <= 3; i++) { g.beginPath(); g.moveTo(X(0), Y(dh + 0.2)); g.quadraticCurveTo(X(i * 0.12), Y(dh + 0.8), X(i * 0.36), Y(apex - 0.35 - Math.abs(i) * 0.2)); g.stroke(); } for (const [cx, cy] of [[-0.55, dh + 0.55], [0.55, dh + 0.55], [0, dh + 1.05]]) { g.beginPath(); g.arc(X(cx), Y(cy), 0.27 * sx, 0, 2 * PI); g.stroke(); } }
+  }
+  // the rose window and the small statue under it
+  circ(0, 8.45, 1.15, STH); circ(0, 8.45, 0.98, STD); circ(0, 8.45, 0.82, '#2e2a28'); g.strokeStyle = '#d2bd92'; g.lineWidth = Math.max(1, sx * 0.07);
+  for (let i = 0; i < 12; i++) { const a = i / 12 * 2 * PI; g.beginPath(); g.moveTo(X(0), Y(8.45)); g.lineTo(X(Math.cos(a) * 0.82), Y(8.45 + Math.sin(a) * 0.82)); g.stroke(); g.beginPath(); g.arc(X(Math.cos(a) * 0.6), Y(8.45 + Math.sin(a) * 0.6), 0.17 * sx, 0, 2 * PI); g.stroke(); }
+  circ(0, 8.45, 0.2, '#d2bd92');
+  for (const [x, ww, sill, apex] of AN_WIN) {
+    point(x, sill - 0.1, apex + 0.45, ww + 0.65, STH); point(x, sill, apex + 0.2, ww + 0.25, STD); point(x, sill, apex, ww * 0.84, '#3a241e');
+    R(x - 0.04, sill, x + 0.04, apex - 1.0, '#241210'); for (let y = sill + 0.3; y < apex - 1.1; y += 0.3) R(x - ww * 0.36, y, x + ww * 0.36, y + 0.05, 'rgba(150,90,70,0.5)');
+    g.strokeStyle = '#d2bd92'; g.lineWidth = Math.max(1, sx * 0.08); for (const [cx, cy, rr] of [[-0.28, apex - 0.85, 0.27], [0.28, apex - 0.85, 0.27], [0, apex - 0.45, 0.2]]) { g.beginPath(); g.arc(X(x + cx), Y(cy), rr * sx, 0, 2 * PI); g.stroke(); }
+    for (const s of [-1, 1]) R(x + s * (ww / 2 + 0.12) - 0.07, sill, x + s * (ww / 2 + 0.12) + 0.07, apex - 0.95, '#e2d0a8');
+  }
+  softShadow(g, w, h, Y, sy, [ALOW + 0.1, AUP + 0.1], 0.25); streaks(g, w, h, 26, 7302, 0.1, 100, '70,50,35'); groundShadow(g, w, h, Y, sy);
+}
+// the flank: tan plaster, a tall pointed window with its hood in each bay, a drain pipe, the cornice
+function paintAnSide(g, w, h) {
+  const H = AN_UP + AUP, sx = w / 4.5, sy = h / H, X = x => x * sx, Y = y => h - y * sy;
+  const R = (x0, y0, x1, y1, c) => { g.fillStyle = c; g.fillRect(X(x0), Y(y1), (x1 - x0) * sx, (y1 - y0) * sy); };
+  const arch = (x, y0, y1, ww, c) => { const r = ww / 2; g.fillStyle = c; g.beginPath(); g.moveTo(X(x - r), Y(y0)); g.lineTo(X(x - r), Y(y1 - r)); g.arc(X(x), Y(y1 - r), r * sx, PI, 0); g.lineTo(X(x + r), Y(y0)); g.fill(); };
+  g.fillStyle = '#bd9a70'; g.fillRect(0, 0, w, h);
+  noiseDots(g, w, h, w * h / 55, 2.5, 7331, ['rgba(130,85,45,0.14)', 'rgba(240,215,170,0.12)', 'rgba(90,80,70,0.1)']);
+  arch(2.25, AN_UP + 4.6, AN_UP + 9.5, 1.75, '#a58a66'); arch(2.25, AN_UP + 4.75, AN_UP + 9.3, 1.35, '#cdb388'); arch(2.25, AN_UP + 4.9, AN_UP + 8.9, 0.85, '#2c2a28');
+  R(1.2, AN_UP + 4.35, 3.3, AN_UP + 4.6, '#8f7658');
+  R(0.3, 0, 0.46, H - 0.9, '#4e4338');
+  R(0, H - 0.55, 4.5, H, '#d3bd94'); R(0, H - 0.8, 4.5, H - 0.55, 'rgba(50,30,15,0.35)');
+  R(0, 0, 4.5, AN_UP - 0.2, 'rgba(120,105,90,0.55)'); for (let y = 0.4; y < AN_UP - 0.2; y += 0.5) R(0, y, 4.5, y + 0.05, 'rgba(60,45,30,0.4)');
+  streaks(g, w, h, 12, 7332, 0.13, 100, '70,50,35');
+}
+// a pointed archivolt standing out of a front: the band between two pointed arches, from the springing up
+function anHood(M, ww, ys, apex, band, d, c) {
+  const path = (s, r, a, rev) => { const h = a - ys; if (!rev) { s.lineTo(-r, ys); s.quadraticCurveTo(-r, ys + h * 0.62, 0, a); s.quadraticCurveTo(r, ys + h * 0.62, r, ys); } else { s.lineTo(r, ys); s.quadraticCurveTo(r, ys + h * 0.62, 0, a); s.quadraticCurveTo(-r, ys + h * 0.62, -r, ys); } };
+  const s = new THREE.Shape(); s.moveTo(-ww / 2 - band, ys); path(s, ww / 2 + band, apex + band * 1.4, false); path(s, ww / 2, apex, true); s.lineTo(-ww / 2 - band, ys);
+  extrude('flat', s, d, { M, c, cs: 5, noao: true });
 }
 function buildAntonio() {
+  defMat('anRail', 64, 64, [1.05, 1.05], (g, w, h) => {
+    g.clearRect(0, 0, w, h); g.fillStyle = '#d9cfba'; g.fillRect(0, 0, w, 9); g.fillRect(0, h - 10, w, 10); g.fillRect(0, 0, 11, h); g.fillRect(w - 3, 0, 3, h);
+    g.strokeStyle = '#c3b69c'; g.lineWidth = 3.2; g.beginPath();
+    for (const x of [11, 36]) { g.moveTo(x, 9); g.lineTo(x + 25, h - 10); g.moveTo(x + 25, 9); g.lineTo(x, h - 10); g.moveTo(x + 12.5, 9); g.lineTo(x + 12.5, h - 10); }
+    g.moveTo(11, 31.5); g.lineTo(w, 31.5); g.stroke();
+  }, { alphaTest: 0.5, side: THREE.DoubleSide });
   return buildChurch({
-    ...AN, pre: 'an', name: "Chiesa di Sant'Antonio abate", O: [212.5, -144.9], N: [0.373, 0.927], FW: AFW, FH: AFH, EAVE: AUP, NT: AUP + 1.5, seed: 7321, C: AC, paint: paintAnt,
-    gx: [[-8, 2], [8, 2], [0, 3]],
-    nave: { x0: -5.5, x1: 5.5, z0: -1.5, z1: -14, rise: 2.8 },
+    ...AN, pre: 'an', name: "Chiesa di Sant'Antonio abate", O: AN_O, N: AN_N, FW: AFW, FH: AFH, EAVE: AN_UP + AUP, NT: 0, seed: 7321, C: AC, paint: paintAnt, side: paintAnSide,
+    gx: [[-8, 2], [8, 2], [0, 3]], back: AN_BACK, up: AN_UP,
     shape(s, hw) {
-      s.moveTo(-hw, 0); s.lineTo(hw, 0); s.lineTo(hw, AUP + 1.2); s.lineTo(-hw, AUP + 1.2); s.lineTo(-hw, 0);
+      s.moveTo(-hw, 0); s.lineTo(hw, 0); s.lineTo(hw, APAR); s.lineTo(7.9, APAR); s.lineTo(7.9, APAR - 0.2); s.lineTo(3.75, APAR - 0.2); s.lineTo(3.75, APAR); s.lineTo(2.45, APAR); s.lineTo(2.45, APAR - 0.2);
+      s.lineTo(-2.45, APAR - 0.2); s.lineTo(-2.45, APAR); s.lineTo(-3.75, APAR); s.lineTo(-3.75, APAR - 0.2); s.lineTo(-7.9, APAR - 0.2); s.lineTo(-7.9, APAR); s.lineTo(-hw, APAR); s.lineTo(-hw, 0);
     },
-    extra({ F, at }) {
-      const stn = '#d6bb8a';
-      bx('flat', F, -AFW / 2 - 0.15, AFW / 2 + 0.15, AUP + 0.45, AUP + 0.75, -1.35, 0.4, { c: '#dcc394', noao: true });
-      bx('flat', F, -AFW / 2 - 0.1, AFW / 2 + 0.1, ALOW - 0.3, ALOW + 0.25, -1.35, 0.25, { c: '#dcc394', noao: true });
-      for (const x of [-8.7, -4.3, 4.3, 8.7]) bx('flat', F, x - 0.5, x + 0.5, 0.6, AUP, -0.05, 0.2, { c: stn, noao: true });
-      for (const x of [-1.9, 1.9]) { bx('stone', F, x - 0.45, x + 0.45, 0.0, 0.5, 0.1, 0.9, { c: '#d6c9a8' }); statue('flat', at(x, 0.5, 0.5), 2.1, { c: '#ece6d6' }); }
-      bx('flat', F, -0.12, 0.12, AUP + 0.7, AUP + 2.0, -0.8, -0.55, { c: '#e6e0d0', noao: true }); bx('flat', F, -0.5, 0.5, AUP + 1.3, AUP + 1.45, -0.8, -0.55, { c: '#e6e0d0', noao: true });
-      // the bell tower behind on the right: sandy stone, a belfry with dark openings, a crown
-      const tx0 = 4.0, tx1 = 9.2, tz0 = -9.5, tz1 = -4.5, TH = 16.0;
-      bx('anBody', F, tx0, tx1, 0, TH, tz0, tz1, {});
-      bx('flat', F, tx0 - 0.2, tx1 + 0.2, TH, TH + 0.4, tz0 - 0.2, tz1 + 0.2, { c: '#bfa270' });
-      for (const [a, b] of [[tx0 + 0.2, tx0 + 1.2], [tx1 - 1.2, tx1 - 0.2]]) for (const [c, d] of [[tz0 + 0.2, tz0 + 1.2], [tz1 - 1.2, tz1 - 0.2]]) bx('flat', F, a, b, TH + 0.4, TH + 1.4, c, d, { c: '#bfa270' });
-      for (const z of [tz1 + 0.01]) bx('dark', F, tx0 + 1.2, tx1 - 1.2, TH - 4.2, TH - 0.8, z, z + 0.06, { c: '#2a1f18', noao: true });
-      bx('dark', F, tx0 - 0.04, tx0 + 0.02, TH - 4.2, TH - 0.8, tz0 + 1.2, tz1 - 1.2, { c: '#2a1f18', noao: true });
+    extra({ F, at, y0, solids }) {
+      const lit = '#d8c298', pil = '#c6ab7c', U = AN_UP, Z = -AN_BACK;   // U: terrace floor, Z: the face of the front
+      const A = (x, y, z) => at(x, U + y, Z + z);
+      // relief on the front: pilasters on their plinths, the two cornices, archivolts, the ring of the rose window
+      for (const x of [-8.55, -3.1, 3.1, 8.55]) { bx('flat', A(x, 0, 0), -0.55, 0.55, 0, ALOW - 0.4, -0.1, 0.16, { c: pil, noao: true }); bx('flat', A(x, 0, 0), -0.5, 0.5, ALOW + 0.25, AUP - 0.35, -0.1, 0.13, { c: pil, noao: true });
+        for (const [a, b] of [[1.25, ALOW - 0.75], [ALOW + 0.6, AUP - 0.65]]) { bx('flat', A(x, 0, 0), -0.29, 0.29, a, b, -0.1, Math.abs(a - 1.25) < 0.01 ? 0.19 : 0.16, { c: '#e0cba2', noao: true }); }
+        bx('flat', A(x, 0, 0), -0.75, 0.75, 0, 0.9, -0.1, 0.34, { c: '#bea274', noao: true }); }
+      bx('flat', A(0, 0, 0), -AFW / 2 - 0.02, AFW / 2 + 0.02, ALOW - 0.25, ALOW + 0.2, -1.2, 0.38, { c: lit, noao: true });
+      bx('flat', A(0, 0, 0), -AFW / 2 - 0.02, AFW / 2 + 0.02, AUP - 0.25, AUP + 0.22, -1.2, 0.45, { c: lit, noao: true });
+      for (const x of [-8.55, -3.1, 3.1, 8.55]) bx('flat', A(x, 0, 0), -0.68, 0.68, APAR - 0.12, APAR + 0.12, -1.3, 0.12, { c: lit, noao: true });
+      for (const [x, ww, apex] of AN_PORT) { anHood(A(x, 0, -0.02), ww + 0.75, apex - ww * 0.62, apex + 0.42, 0.24, 0.2, lit); for (const s of [-1, 1]) bx('flat', A(x, 0, 0), s * (ww / 2 + 0.5) - 0.13, s * (ww / 2 + 0.5) + 0.13, 0, apex - ww * 0.62, -0.1, 0.17, { c: '#e0cba2', noao: true }); }
+      for (const [x, ww, sill, apex] of AN_WIN) { anHood(A(x, 0, -0.02), ww + 0.25, apex - 0.95, apex + 0.18, 0.2, 0.17, lit); bx('flat', A(x, 0, 0), -ww / 2 - 0.4, ww / 2 + 0.4, sill - 0.2, sill, -0.1, 0.24, { c: lit, noao: true }); }
+      { const s = new THREE.Shape(); s.absarc(0, 0, 1.2, 0, 2 * PI, false); const hole = new THREE.Path(); hole.absarc(0, 0, 0.94, 0, 2 * PI, true); s.holes.push(hole); extrude('flat', s, 0.18, { M: A(0, 8.45, -0.02), c: lit, cs: 10, noao: true }); }
+      statue('flat', A(0, ALOW + 0.2, 0.2), 0.85, { c: '#e6e0d0' });
+      for (const x of [-3.15, 3.15]) { bx('flat', A(x, 0, 0), -0.55, 0.55, 0, 1.75, -0.05, 0.95, { c: '#cbb890' }); bx('flat', A(x, 0, 0), -0.66, 0.66, 1.75, 1.95, -0.05, 1.05, { c: '#ddcca8' }); statue('flat', A(x, 1.95, 0.5), 2.0, { c: '#ece6d6' }); }
+      bx('flat', A(0, 0, 0), -0.45, 0.45, APAR - 0.2, APAR + 0.45, -0.75, -0.15, { c: lit, noao: true });
+      bx('flat', A(0, 0, 0), -0.09, 0.09, APAR + 0.45, APAR + 1.75, -0.5, -0.34, { c: '#eee8da', noao: true }); bx('flat', A(0, 0, 0), -0.48, 0.48, APAR + 1.15, APAR + 1.33, -0.5, -0.34, { c: '#eee8da', noao: true });
+      // the terrace: retaining wall, string course, the pierced balustrade between stone posts, a shop opening, an arched door, the stair drawn on the wall at the right
+      bx('tufa', F, -AFW / 2, AFW / 2, -1.2, U - 0.25, -AN_BACK - 0.2, -0.42, { c: '#a4967e' });
+      bx('flat', F, -AFW / 2, AFW / 2, U - 0.25, U + 0.04, -AN_BACK - 0.2, -0.08, { c: '#bdb096' });
+      panel('anRail', AFW, 1.05, { M: at(0, U + 0.04, -0.3), uvk: [18, 1], c: '#d6ccb8' });
+      for (let i = 0; i <= 6; i++) { const x = -AFW / 2 + 0.22 + i * (AFW - 0.44) / 6; bx('flat', F, x - 0.22, x + 0.22, U + 0.04, U + 1.14, -0.46, -0.12, { c: '#c0b49c', noao: true }); }
+      bx('flat', F, -AFW / 2, AFW / 2, U + 1.07, U + 1.2, -0.42, -0.18, { c: '#c9bea6', noao: true });
+      for (const [x, ww, hh] of [[-6.4, 2.7, 2.35], [-3.3, 1.4, 2.35]]) { bx('dark', F, x - ww / 2, x + ww / 2, 0, hh, -0.5, -0.39, { c: '#241c18', noao: true }); bx('flat', F, x - ww / 2 - 0.15, x + ww / 2 + 0.15, hh, hh + 0.42, -0.5, -0.28, { c: '#8e2f28', noao: true }); }
+      extrude('dark', archShape(1.5, 2.5), 0.1, { M: at(1.2, 0, -0.47), c: '#2a201a', cs: 6, noao: true }); anHood(at(1.2, 0, -0.43), 1.5, 1.7, 2.5, 0.18, 0.12, '#bfae8e');
+      { const x0 = 3.4, x1 = AFW / 2 - 0.05, top = U - 0.1, s = new THREE.Shape(); s.moveTo(x0, -0.3); s.lineTo(x1, -0.3); s.lineTo(x1, 0.35); s.lineTo(x0, top); s.lineTo(x0, -0.3);
+        extrude('tufa', s, 0.36, { M: at(0, 0, -0.43), c: '#b2a48a' });
+        const len = Math.hypot(x1 - x0, top - 0.35), M = mul(at((x0 + x1) / 2, (top + 0.35) / 2, -0.1), new THREE.Matrix4().makeRotationZ(-Math.atan2(top - 0.35, x1 - x0)));
+        panel('anRail', len, 0.9, { M: mul(M, tr(0, 0.04, -0.02)), uvk: [len, 1], c: '#d6ccb8' }); bx('flat', M, -len / 2, len / 2, 0.9, 1.04, -0.1, 0.06, { c: '#c9bea6', noao: true }); bx('flat', M, -len / 2, len / 2, -0.14, 0.06, -0.1, 0.08, { c: '#c0b49c', noao: true });
+        for (const k of [0.02, 0.5, 0.98]) { const x = x0 + (x1 - x0) * k, y = top + (0.35 - top) * k; bx('flat', F, x - 0.16, Math.min(x + 0.16, AFW / 2), y - 0.05, y + 1.1, -0.16, -0.02, { c: '#c0b49c', noao: true }); } }
+      // the flanks: cornice and low parapet
+      for (const [a, b] of [[[-9.45, -AN_BACK - 1.3], [-9.39, -18.76]], [[9.45, -AN_BACK - 1.3], [9.5, -9.34]]]) { const x = (a[0] + b[0]) / 2, sg = Math.sign(x); bx('flat', F, x - 0.25 + sg * 0.0, x + 0.25, U + AUP - 0.15, U + AUP + 0.55, b[1], a[1], { c: '#c9ad82', noao: true }); }
+      // the bell tower: its outline carried up as a lower block, then the square shaft with clock and shuttered window, and the open belfry between four piers
+      const T = pairsOf(AN_TOWER), tgr = groundRange(T);
+      prism('tufa', T, Math.min(tgr.lo, y0) - 1.5, y0 + 12.2, { c: '#c6b494' });
+      prism('flat', T, y0 + 12.2, y0 + 12.35, { c: '#a39a8c' });
+      const tx0 = 9.62, tx1 = 14.35, tz0 = -14.6, tz1 = -9.7, cx = (tx0 + tx1) / 2, cz = (tz0 + tz1) / 2, SH = 21.6, TH = 26.8, C = '#cabc9e';
+      bx('tufa', F, tx0, tx1, 12.0, SH, tz0, tz1, { c: C });
+      for (const y of [14.6, 19.5, SH - 0.1]) bx('flat', F, tx0 - 0.14, tx1 + 0.14, y, y + 0.28, tz0 - 0.14, tz1 + 0.14, { c: '#a89374', noao: true });
+      for (const [a, b] of [[tx0, tx0 + 1.45], [tx1 - 1.45, tx1]]) for (const [c, d] of [[tz0, tz0 + 1.45], [tz1 - 1.45, tz1]]) { bx('tufa', F, a, b, SH, TH, c, d, { c: C }); bx('flat', F, a - 0.08, b + 0.08, TH, TH + 0.3, c - 0.08, d + 0.08, { c: '#a89374', noao: true }); bx('flat', F, a + 0.4, b - 0.4, TH + 0.3, TH + 0.6, c + 0.4, d - 0.4, { c: '#b7a184', noao: true }); }
+      bx('tufa', F, tx0 + 0.05, tx1 - 0.05, SH, SH + 1.0, tz0 + 0.05, tz1 - 0.05, { c: '#bcae92' });
+      for (const z of [tz0 + 0.7, tz1 - 0.7]) bx('dark', F, tx0 + 1.3, tx1 - 1.3, TH - 0.7, TH - 0.5, z - 0.08, z + 0.08, { c: '#33291f', noao: true });
+      for (const x of [tx0 + 0.7, tx1 - 0.7]) bx('dark', F, x - 0.08, x + 0.08, TH - 0.7, TH - 0.5, tz0 + 1.3, tz1 - 1.3, { c: '#33291f', noao: true });
+      bx('bronze', F, cx - 0.5, cx + 0.5, SH + 2.6, SH + 3.7, cz - 0.5, cz + 0.5, { c: '#3f4438', noao: true }); bx('dark', F, cx - 0.12, cx + 0.12, SH + 3.7, TH - 0.5, cz - 0.12, cz + 0.12, { c: '#33291f', noao: true });
+      for (const [M] of [[at(cx, 0, tz1)], [mul(at(tx0, 0, cz), rotY(-PI / 2))], [mul(at(tx1, 0, cz), rotY(PI / 2))]]) {
+        extrude('flat', archShape(1.75, 2.75), 0.08, { M: mul(M, tr(0, 14.9, -0.03)), c: '#b49d7c', cs: 6, noao: true });
+        extrude('dark', archShape(1.25, 2.45), 0.1, { M: mul(M, tr(0, 14.92, -0.02)), c: '#6e3f2a', cs: 6, noao: true });
+        bx('dark', M, -0.03, 0.03, 14.95, 17.2, 0.07, 0.1, { c: '#2a160e', noao: true });
+        const face = (r, d, c) => extrude('flat', new THREE.Shape().absarc(0, 0, r, 0, 2 * PI, false), d, { M: mul(M, tr(0, 18.3, -0.02)), c, cs: 10, noao: true });
+        face(0.78, 0.08, '#6b5c46'); face(0.66, 0.11, '#ede7d8');
+        bx('dark', M, -0.04, 0.04, 18.3, 18.85, 0.09, 0.12, { c: '#222018', noao: true }); bx('dark', M, 0, 0.4, 18.27, 18.34, 0.09, 0.12, { c: '#222018', noao: true });
+      }
+      solids.push([AN_TOWER, null, y0 + 12.2], [[[tx0, tz0], [tx1, tz0], [tx1, tz1], [tx0, tz1]].flatMap(([x, z]) => [AN_O[0] + x * AN_N[1] + z * AN_N[0], AN_O[1] - x * AN_N[0] + z * AN_N[1]]), null, y0 + SH]);
     },
   });
 }
@@ -327,6 +413,6 @@ function buildValverde() {
 export const BATCH_C = [
   { name: 'Chiesa di San Nicolo da Tolentino', x: 160, z: 205, radius: 50, skipIds: [TL.id], build: buildTolentino },
   { name: 'Chiesa di San Mattia e Noviziato dei Crociferi', x: 1014, z: -113, radius: 50, skipIds: [MT.id], build: buildMattia },
-  { name: "Chiesa di Sant'Antonio abate", x: 208, z: -152, radius: 40, skipIds: [AN.id], build: buildAntonio },
+  { name: "Chiesa di Sant'Antonio abate", x: 208, z: -152, radius: 40, skipIds: [AN.id, AN.tower], build: buildAntonio },
   { name: 'Chiesa di Santa Maria di Valverde', x: 222, z: -508, radius: 45, skipIds: [VL.id], build: buildValverde },
 ];

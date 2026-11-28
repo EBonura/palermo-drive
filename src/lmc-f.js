@@ -7,6 +7,7 @@ import {
   mul, tr, rotY, frame, pairsOf, obb, facing, groundRange, groundY, initShared, ensureTrunk, paintAshlar, noiseDots, streaks, palm, crenel, rail,
 } from './lmc-kit.js';
 import { FP } from './landmarks-city-data.js';
+import { TREE_CLEAR } from './tree-clear.js';
 
 const r1 = (v) => Math.round(v * 10) / 10;
 // world position of the local point (x, z) of a frame at O whose +z points along (nx, nz) (local +x is (nz, -nx), as frame() has it)
@@ -26,149 +27,189 @@ const archPath = (g, X, Y, cx, hw, y0, hs, top) => {
 };
 
 // ====================================================================================================
-// La Zisa (Palermo, 1165-1175): a 36 x 20 m block of ochre ashlar, three storeys under a crenellated parapet. Ground floor: the great iwan (a tall pointed arch in a wider
-// pointed frame) on the axis with a smaller doorway each side; above them seven tall blind arches round the windows and a row of small ones under the inscription band.
-// Behind the iwan the Sala della Fontana: marble walls, the gold mosaic frieze, the muqarnas niche at the back and the water channel that runs out of it over the floor, down
-// a stepped cascade between two flights of stairs into the long pool; the garden round it. The later pink belvedere on the roof and the corner turrets.
+// La Zisa (Palermo, 12th century): a 36.6 x 20.6 m block of ochre ashlar under a crenellated parapet, its front to the EAST, over the garden. Front: the great iwan
+// (a tall pointed arch in a wider pointed frame) on the axis with a smaller doorway each side, the carved emblem over it, two square windows either side of the middle
+// storey inside blind arches, and on top seven tall blind arches round the upper windows. The short sides carry blind arches in three tiers and, in the middle of each,
+// the projecting bay of the footprint ending in a small turret with a pyramid cap; the rear has its own row of blind arches and small round-headed windows. Set back on the roof the
+// remains of the later attic: two ochre pavilions with a low wall between. Behind the iwan the Sala della Fontana with its niche and water channel; in front, a low
+// basin with a red rim and clipped hedges along the wall.
+// Photos (Wikimedia Commons, looked at only): "East facade of La Zisa, Palermo" (both), "East and south facade of La Zisa, Palermo", "North facade of La Zisa, Palermo",
+// "La Zisa (Palermo) msu2017-0472", "0690 - PA - La Zisa", "Palazzo Zisa PA 03", "La Zisa (Palermo) 19 06 2026 22" to "36" (rear and sides).
+// Not verified: the exact spacing of the rear windows, the south side (drawn as the north one), the depth of the attic on the roof, the basin's size.
 // ====================================================================================================
-const ZW = 36, ZD = 19.6, ZH = 25.2, SLAB_H = 12.4, IW = 4.8, IH = 8.6, PODIUM = 1.2, POOL_GAP = 3.0, POOL_L = 23.2;
-const ZIS = (() => {   // fitted to the OSM footprint once, at load (no ground needed): origin, front normal
-  const pts = pairsOf(FP.zisa.p), ob = obb(pts), fr = facing(ob, -1, 0.1);
+const ZW = 36.6, ZD = 20.6, ZH = 23.2, SLAB_H = 12.4, IW = 4.8, IH = 9.4, PROJ = 2.8, PW2 = 2.4;
+const ZIS = (() => {   // fitted to the OSM footprint once, at load (no ground needed): origin, front normal (east)
+  const pts = pairsOf(FP.zisa.p), ob = obb(pts), fr = facing(ob, 1, 0);
   return { ob, fr, W: Math.min(fr.w, ZW), D: Math.min(fr.d, ZD) };
 })();
-function paintZisaLow(g, w, h) {   // the ground floor and the first window row: ashlar, the framing arches, the flank windows; metres from the left edge, y up
+// a blind arch sunk in the wall: the shadowed field, a light outer moulding and a second one inside it. y0 foot, hs springing, top apex (metres above the ground)
+const blind = (g, X, Y, sx, cx, hw, y0, hs, top, deep = true) => {
+  archPath(g, X, Y, cx, hw, y0, hs - y0, top - y0); g.fillStyle = '#baa88a'; g.fill(); g.lineWidth = 0.22 * sx; g.strokeStyle = '#d8caac'; g.stroke();
+  g.lineWidth = Math.max(1, 0.07 * sx); g.strokeStyle = 'rgba(55,40,22,0.6)'; g.stroke();
+  if (!deep) return;
+  archPath(g, X, Y, cx, hw * 0.72, y0 + 0.15, hs - y0 - 0.35, top - y0 - 0.7); g.fillStyle = '#b09d80'; g.fill(); g.lineWidth = Math.max(1, 0.1 * sx); g.strokeStyle = '#cfbf9f'; g.stroke();
+};
+const course = (g, Y, sy, w, y) => { g.fillStyle = '#d9c799'; g.fillRect(0, Y(y + 0.16), w, 0.16 * sy); g.fillStyle = 'rgba(50,36,20,0.55)'; g.fillRect(0, Y(y), w, Math.max(1, 0.09 * sy)); };
+const zwin = (g, X, Y, sx, sy, cx, y0, y1, ww, round) => {   // a window: stone surround, dark glass, for the square ones a pale frame and mullion
+  g.fillStyle = '#e3d3a8';
+  if (round) { archPath(g, X, Y, cx, ww / 2 + 0.16, y0 - 0.1, y1 - y0 - ww / 2, y1 - y0 + 0.3); g.fill(); g.fillStyle = '#2a251f'; archPath(g, X, Y, cx, ww / 2, y0, y1 - y0 - ww / 2, y1 - y0); g.fill(); return; }
+  g.fillRect(X(cx - ww / 2 - 0.14), Y(y1 + 0.18), (ww + 0.28) * sx, (y1 - y0 + 0.3) * sy);
+  g.fillStyle = '#26231f'; g.fillRect(X(cx - ww / 2), Y(y1), ww * sx, (y1 - y0) * sy);
+  g.fillStyle = 'rgba(190,200,205,0.45)'; g.fillRect(X(cx - ww / 2) + 2, Y(y1) + 2, ww * sx - 4, (y1 - y0) * sy * 0.62);
+  g.fillStyle = '#d8d2c2'; g.fillRect(X(cx) - 1, Y(y1), 2, (y1 - y0) * sy); g.fillRect(X(cx - ww / 2), Y(y1 - (y1 - y0) * 0.62), ww * sx, 2);
+};
+function paintZisaLow(g, w, h) {   // 0 to 12.4 m: the plinth, the three doorways in their arches, the middle storey's windows
   const sx = w / ZW, sy = h / SLAB_H, X = (m) => (m + ZW / 2) * sx, Y = (y) => h - y * sy;
-  paintAshlar(g, w, h, ZW, SLAB_H, 0.5, 1.15, '#c7ad7e', '#8c7753', 811, 2, 0.07);
-  g.fillStyle = 'rgba(40,30,18,0.22)'; g.fillRect(0, Y(0.9), w, 0.9 * sy);                                        // the plinth
-  const ring = (cx, hw, hs, top, lw, col) => { archPath(g, X, Y, cx, hw, 0, hs, top); g.lineWidth = lw * sx; g.strokeStyle = col; g.stroke(); };
-  // the great frame arch round the iwan: a wide band of lighter stone, a shadow line inside it
-  archPath(g, X, Y, 0, 5.1, 0, 6.2, 11.6); g.fillStyle = '#b8a174'; g.fill();
-  ring(0, 5.1, 6.2, 11.6, 0.55, '#e0cfa2'); ring(0, 4.5, 6.0, 10.9, 0.18, 'rgba(50,38,22,0.7)');
-  for (const sg of [-1, 1]) { archPath(g, X, Y, sg * 9.4, 2.9, 0, 3.9, 8.5); g.fillStyle = '#b8a174'; g.fill(); ring(sg * 9.4, 2.9, 3.9, 8.5, 0.4, '#e0cfa2'); ring(sg * 9.4, 2.5, 3.8, 7.9, 0.14, 'rgba(50,38,22,0.7)'); }
-  const rect = (cx, y0, y1, ww) => { g.fillStyle = '#231c15'; g.fillRect(X(cx - ww / 2), Y(y1), ww * sx, (y1 - y0) * sy); g.fillStyle = '#e3d3a8'; g.fillRect(X(cx - ww / 2) - 2, Y(y1) - 2, ww * sx + 4, 3); g.fillRect(X(cx - ww / 2) - 2, Y(y0), ww * sx + 4, 3); };
-  for (const x of [-14.4, -9.7, 9.7, 14.4]) rect(x, 9.5, 12.0, 1.05);                                        // the flank windows of the first row
-  g.fillStyle = '#e8dcb6'; g.beginPath(); g.ellipse(X(0), Y(12.0), 1.1 * sx, 0.55 * sy, 0, 0, 7); g.fill();  // the cartouche over the frame arch
-  g.strokeStyle = 'rgba(60,45,25,0.55)'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, Y(8.3)); g.lineTo(w, Y(8.3)); g.stroke();   // the string course the tall arches stand on
-  streaks(g, w, h, 40, 812, 0.2, 200);
-  const gb = g.createLinearGradient(0, h, 0, h - 3 * sy); gb.addColorStop(0, 'rgba(25,20,14,0.4)'); gb.addColorStop(1, 'rgba(25,20,14,0)'); g.fillStyle = gb; g.fillRect(0, h - 3 * sy, w, 3 * sy);
+  paintAshlar(g, w, h, ZW, SLAB_H, 0.5, 1.15, '#c2b093', '#9b8a6c', 811, 1.5, 0.08);
+  g.fillStyle = 'rgba(40,30,18,0.2)'; g.fillRect(0, Y(0.9), w, 0.9 * sy);
+  course(g, Y, sy, w, 6.9);
+  for (const x of [-14.4, -9.9, 9.9, 14.4]) { blind(g, X, Y, sx, x, 1.9, 7.1, 10.0, 12.0, false); zwin(g, X, Y, sx, sy, x, 7.9, 10.2, 1.35); }
+  blind(g, X, Y, sx, 0, 4.3, 0, 6.6, 11.3, false); blind(g, X, Y, sx, 0, 3.3, 0, 6.4, 10.3, false);          // the stepped frame of the iwan
+  for (const sg of [-1, 1]) { blind(g, X, Y, sx, sg * 9.9, 2.25, 0, 4.0, 6.7, false); blind(g, X, Y, sx, sg * 9.9, 1.6, 0, 3.8, 6.0, false); }
+  g.fillStyle = '#e4dcc4'; g.beginPath(); g.ellipse(X(0), Y(11.75), 0.6 * sx, 0.42 * sy, 0, 0, 7); g.fill();            // the carved emblem
+  for (const sg of [-1, 1]) { g.beginPath(); g.ellipse(X(sg * 0.9), Y(11.6), 0.55 * sx, 0.22 * sy, -sg * 0.5, 0, 7); g.fill(); }
+  g.fillStyle = '#8f3b30'; g.fillRect(X(5.6), Y(4.2), 1.0 * sx, 0.7 * sy);                                              // the red plaque beside the iwan
+  streaks(g, w, h, 36, 812, 0.18, 130);
+  const gb = g.createLinearGradient(0, h, 0, h - 3 * sy); gb.addColorStop(0, 'rgba(25,20,14,0.36)'); gb.addColorStop(1, 'rgba(25,20,14,0)'); g.fillStyle = gb; g.fillRect(0, h - 3 * sy, w, 3 * sy);
 }
-function paintZisaUp(g, w, h) {   // from 12.4 m to the parapet: seven tall blind arches with a window each, the row of small arches, the band of the inscription
+function paintZisaUp(g, w, h) {   // 12.4 m to the parapet: seven tall blind arches, a window in each (the third and fifth small and round headed)
   const UH = ZH - SLAB_H, sx = w / ZW, sy = h / UH, X = (m) => (m + ZW / 2) * sx, Y = (y) => h - (y - SLAB_H) * sy;
-  paintAshlar(g, w, h, ZW, UH, 0.5, 1.15, '#c9b082', '#8c7753', 813, 2, 0.07);
-  for (let i = 0; i < 7; i++) {
-    const cx = (i - 3) * 4.8;
-    archPath(g, X, Y, cx, 2.0, 12.4, 6.8, 9.4); g.fillStyle = '#b09a70'; g.fill(); g.lineWidth = 0.28 * sx; g.strokeStyle = '#dccb9c'; g.stroke();     // the tall blind arch
-    archPath(g, X, Y, cx, 1.55, 12.6, 6.3, 8.7); g.fillStyle = '#a28b63'; g.fill();
-    g.fillStyle = '#231c15'; g.fillRect(X(cx - 0.52), Y(18.4), 1.04 * sx, 3.0 * sy); g.fillStyle = '#e3d3a8'; g.fillRect(X(cx - 0.62), Y(18.4) - 2, 1.24 * sx, 3);   // the window
-    g.fillStyle = '#231c15'; g.fillRect(X(cx - 0.52), Y(14.2), 1.04 * sx, 1.7 * sy);                                                                       // and the lower one
-  }
-  for (let i = 0; i < 14; i++) { const cx = (i - 6.5) * 2.4; archPath(g, X, Y, cx, 0.9, 21.0, 1.1, 2.2); g.fillStyle = '#a99366'; g.fill(); g.lineWidth = 0.14 * sx; g.strokeStyle = '#d6c496'; g.stroke(); }
-  g.fillStyle = '#3a2f22'; g.fillRect(0, Y(24.6), w, 0.7 * sy); g.fillStyle = '#c9b78e'; for (let x = 0.3; x < ZW; x += 0.55) g.fillRect(X(x - ZW / 2), Y(24.5), 0.28 * sx, 0.4 * sy);   // the inscription band
-  g.fillStyle = 'rgba(40,30,20,0.2)'; g.fillRect(0, Y(21.0), w, 0.12 * sy);
-  streaks(g, w, h, 50, 814, 0.2, 200);
+  paintAshlar(g, w, h, ZW, UH, 0.5, 1.15, '#c4b295', '#9b8a6c', 813, 1.5, 0.08);
+  course(g, Y, sy, w, 12.5);
+  [-14.4, -9.9, -5.0, 0, 5.0, 9.9, 14.4].forEach((x, i) => { blind(g, X, Y, sx, x, 2.05, 12.8, 19.6, 22.0); if (i === 2 || i === 4) zwin(g, X, Y, sx, sy, x, 15.0, 17.2, 0.75, true); else zwin(g, X, Y, sx, sy, x, 15.0, 17.5, 1.35); });
+  course(g, Y, sy, w, 22.35);
+  streaks(g, w, h, 44, 814, 0.18, 130);
 }
-function paintZisaInt(g, w, h) {   // the side walls of the hall, 5.8 m x 8.6 m: marble to 2.4 m, the gold mosaic frieze, a plain stucco above
+function paintZisaSide(g, w, h) {   // a short side, ZD wide: three tiers of blind arches either side of the middle (the projecting bay shows the middle of this canvas)
+  const sx = w / ZD, sy = h / ZH, X = (m) => (m + ZD / 2) * sx, Y = (y) => h - y * sy;
+  paintAshlar(g, w, h, ZD, ZH, 0.5, 1.15, '#c0ae91', '#9b8a6c', 815, 1.5, 0.08);
+  for (const y of [6.9, 12.5, 22.35]) course(g, Y, sy, w, y);
+  for (const x of [-6.4, 0, 6.4]) {
+    const hw = x ? 2.5 : 1.7;
+    blind(g, X, Y, sx, x, hw, 0.9, 4.6, 6.4); blind(g, X, Y, sx, x, hw, 7.2, 10.1, 11.9); blind(g, X, Y, sx, x, hw, 12.8, 19.4, 21.9);
+    if (x) { zwin(g, X, Y, sx, sy, x, 8.2, 9.8, 0.7, true); zwin(g, X, Y, sx, sy, x, 15.2, 17.2, 0.7, true); }
+  }
+  zwin(g, X, Y, sx, sy, 0, 15.2, 16.6, 0.5, true);
+  streaks(g, w, h, 30, 816, 0.2, 90);
+}
+function paintZisaRear(g, w, h) {
+  const sx = w / ZW, sy = h / ZH, X = (m) => (m + ZW / 2) * sx, Y = (y) => h - y * sy;
+  paintAshlar(g, w, h, ZW, ZH, 0.5, 1.15, '#c4b295', '#9b8a6c', 817, 1.5, 0.09);
+  course(g, Y, sy, w, 12.5); course(g, Y, sy, w, 22.35);
+  for (let i = -4; i <= 4; i++) blind(g, X, Y, sx, i * 3.9, 1.6, 12.8, 19.8, 21.9, Math.abs(i) > 2);
+  for (const x of [-15.6, -7.8, -4.6, 4.6, 7.8, 15.6]) zwin(g, X, Y, sx, sy, x, 14.6, 16.2, 0.9, true);
+  zwin(g, X, Y, sx, sy, 0, 14.5, 16.9, 1.2);
+  for (const sg of [-1, 1]) blind(g, X, Y, sx, sg * 14.6, 2.4, 6.6, 10.0, 11.9);
+  for (const x of [-8.2, -5.4, 5.0, 7.8]) zwin(g, X, Y, sx, sy, x, 7.6, 9.6, 1.0, true);
+  zwin(g, X, Y, sx, sy, 14.6, 7.8, 9.4, 0.7, true);
+  for (const x of [-12, -4, 4, 12]) { g.fillStyle = '#2a231a'; g.fillRect(X(x - 0.35), Y(1.2), 0.7 * sx, 0.5 * sy); }
+  streaks(g, w, h, 40, 818, 0.18, 110);
+}
+function paintZisaInt(g, w, h) {   // the side walls of the hall, 5.8 m x IH: marble to 2.4 m, the gold mosaic frieze, plain stucco above
   const sx = w / 5.8, sy = h / IH, Y = (y) => h - y * sy;
   g.fillStyle = '#d9cfae'; g.fillRect(0, 0, w, h);
   g.fillStyle = '#e8e2d0'; g.fillRect(0, Y(2.4), w, 2.4 * sy); g.strokeStyle = 'rgba(90,80,60,0.35)'; g.lineWidth = 2; for (let x = 0; x <= w; x += 1.45 * sx) { g.beginPath(); g.moveTo(x, Y(2.4)); g.lineTo(x, h); g.stroke(); }
   g.fillStyle = '#b8a47a'; g.fillRect(0, Y(2.55), w, 0.15 * sy);
   g.fillStyle = '#c9a24a'; g.fillRect(0, Y(4.0), w, 1.45 * sy);                                                  // the gold ground of the frieze
   const cols = ['#2a6a8a', '#7a2a26', '#3a7a4a', '#f0e6c0']; for (let x = 0; x < w; x += 0.5 * sx) { g.fillStyle = cols[((x / (0.5 * sx)) | 0) % 4]; g.fillRect(x + 2, Y(3.8), 0.32 * sx, 0.45 * sy); g.fillRect(x + 2, Y(3.1), 0.32 * sx, 0.3 * sy); }
-  noiseDots(g, w, h, 500, 2.5, 815, ['rgba(110,90,60,0.1)', 'rgba(255,250,230,0.1)']);
+  noiseDots(g, w, h, 300, 2.5, 819, ['rgba(110,90,60,0.1)', 'rgba(255,250,230,0.1)']);
 }
 function paintZisaNiche(g, w, h) {   // the back wall of the hall, IW x IH: the marble slab with the carved zigzag channel, the mosaic roundels, the muqarnas niche
   const sx = w / IW, sy = h / IH, X = (m) => (m + IW / 2) * sx, Y = (y) => h - y * sy;
   g.fillStyle = '#d9cfae'; g.fillRect(0, 0, w, h); g.fillStyle = '#e8e2d0'; g.fillRect(0, Y(2.4), w, 2.4 * sy);
   g.fillStyle = '#c9a24a'; g.fillRect(0, Y(4.0), w, 1.45 * sy);
   const cols = ['#2a6a8a', '#7a2a26', '#3a7a4a', '#f0e6c0']; for (let x = 0; x < w; x += 0.5 * sx) { g.fillStyle = cols[((x / (0.5 * sx)) | 0) % 4]; g.fillRect(x + 2, Y(3.8), 0.32 * sx, 0.45 * sy); }
-  // the chadar: a carved slab from the niche to the floor, zigzag grooves the water runs down
   g.fillStyle = '#efe9d6'; g.fillRect(X(-0.55), Y(2.4), 1.1 * sx, 2.4 * sy); g.strokeStyle = '#8a8470'; g.lineWidth = 3;
   for (let y = 0.1; y < 2.3; y += 0.22) { g.beginPath(); g.moveTo(X(-0.5), Y(y)); g.lineTo(X(0), Y(y + 0.14)); g.lineTo(X(0.5), Y(y)); g.stroke(); }
-  // the niche: a pointed arch of stalactite tiers (muqarnas), each tier a row of small cells, lighter above
   archPath(g, X, Y, 0, 1.3, 2.4, 3.4, 6.2); g.fillStyle = '#2a2420'; g.fill();
   for (let t = 0; t < 5; t++) { const hw = 1.2 - t * 0.2, y0 = 3.2 + t * 0.62, n = 6 - t; for (let k = 0; k < n; k++) { const x0 = -hw + (2 * hw) * k / n, x1 = -hw + (2 * hw) * (k + 1) / n; g.fillStyle = t % 2 ? '#d8c9a0' : '#c9a24a'; g.beginPath(); g.moveTo(X(x0), Y(y0)); g.lineTo(X(x1), Y(y0)); g.lineTo(X((x0 + x1) / 2), Y(y0 + 0.62)); g.closePath(); g.fill(); g.strokeStyle = 'rgba(60,45,25,0.6)'; g.lineWidth = 1.5; g.stroke(); } }
   archPath(g, X, Y, 0, 1.55, 2.4, 3.5, 6.7); g.lineWidth = 0.22 * sx; g.strokeStyle = '#c9a24a'; g.stroke();
-  for (const sg of [-1, 1]) { g.fillStyle = '#f0e6c0'; g.beginPath(); g.arc(X(sg * 1.85), Y(5.2), 0.34 * sx, 0, 7); g.fill(); g.fillStyle = '#2a6a8a'; g.beginPath(); g.arc(X(sg * 1.85), Y(5.2), 0.2 * sx, 0, 7); g.fill(); }   // the roundels
-  noiseDots(g, w, h, 400, 2.5, 816, ['rgba(110,90,60,0.1)', 'rgba(255,250,230,0.1)']);
+  for (const sg of [-1, 1]) { g.fillStyle = '#f0e6c0'; g.beginPath(); g.arc(X(sg * 1.85), Y(5.2), 0.34 * sx, 0, 7); g.fill(); g.fillStyle = '#2a6a8a'; g.beginPath(); g.arc(X(sg * 1.85), Y(5.2), 0.2 * sx, 0, 7); g.fill(); }
+  noiseDots(g, w, h, 300, 2.5, 820, ['rgba(110,90,60,0.1)', 'rgba(255,250,230,0.1)']);
 }
 function buildZisa() {
   initShared();
   const { ob, fr, W, D } = ZIS, pts = pairsOf(FP.zisa.p), gr = groundRange(pts);
-  const gy = gr.hi + 0.15, M = frame(ob.cx, gy + PODIUM, ob.cz, fr.nx, fr.nz), M0 = frame(ob.cx, gy, ob.cz, fr.nx, fr.nz);
+  const gy = gr.hi + 0.15, M = frame(ob.cx, gy, ob.cz, fr.nx, fr.nz);
   begin(gy);
-  defMat('zfLow', 1024, 360, [W, SLAB_H], paintZisaLow);
-  defMat('zfUp', 1024, 380, [W, ZH - SLAB_H], paintZisaUp);
-  defMat('zfInt', 256, 400, [5.8, IH], paintZisaInt);
-  defMat('zfNiche', 256, 400, [IW, IH], paintZisaNiche);
-  defMat('zfAshlar', 256, 256, [5, 5], (g, w, h) => paintAshlar(g, w, h, 5, 5, 0.5, 1.15, '#c2a97a', '#8c7753', 817, 2, 0.07));
-  defMat('zfFloor', 128, 128, [2.4, 2.4], (g, w, h) => { g.fillStyle = '#d6cdb2'; g.fillRect(0, 0, w, h); g.fillStyle = '#b9ad8a'; g.fillRect(0, 0, w / 2, h / 2); g.fillRect(w / 2, h / 2, w / 2, h / 2); noiseDots(g, w, h, 300, 2, 818, ['rgba(110,90,60,0.1)']); });
-  defMat('zfGravel', 128, 128, [3, 3], (g, w, h) => { g.fillStyle = '#c4b490'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 900, 2.2, 819, ['rgba(120,100,70,0.3)', 'rgba(240,225,190,0.3)']); });
-  defMat('zfPlain', 0, 0, [1, 1], null);
-  const front = D / 2, SL = 1.0;                                            // the front plane and the thickness of the front slab
+  defMat('zfLow', 768, 260, [W, SLAB_H], paintZisaLow);
+  defMat('zfUp', 768, 228, [W, ZH - SLAB_H], paintZisaUp);
+  defMat('zfSide', 256, 288, [ZD, ZH], paintZisaSide);
+  defMat('zfRear', 512, 320, [ZW, ZH], paintZisaRear);
+  defMat('zfInt', 192, 320, [5.8, IH], paintZisaInt);
+  defMat('zfNiche', 192, 384, [IW, IH], paintZisaNiche);
+  defMat('zfAshlar', 256, 256, [5, 5], (g, w, h) => paintAshlar(g, w, h, 5, 5, 0.5, 1.15, '#bfad90', '#9b8a6c', 821, 2, 0.07));
+  defMat('zfFloor', 128, 128, [2.4, 2.4], (g, w, h) => { g.fillStyle = '#d6cdb2'; g.fillRect(0, 0, w, h); g.fillStyle = '#b9ad8a'; g.fillRect(0, 0, w / 2, h / 2); g.fillRect(w / 2, h / 2, w / 2, h / 2); noiseDots(g, w, h, 300, 2, 822, ['rgba(110,90,60,0.1)']); });
+  const front = D / 2, SL = 1.0, HB = 6.8;                                  // the front plane, the thickness of the front slab, the depth of the hall
   const wall = (x0, x1, y0, y1, z0, z1, key = 'zfAshlar') => bx(key, M, x0, x1, y0, y1, z0, z1);
-  // the podium the palace stands on, a skirt down to the ground, and the footing under the whole block
-  bx('stone', M0, -W / 2 - 1.0, W / 2 + 1.0, -2.5, PODIUM, -D / 2 - 1.0, front + 4.0, { c: '#b8a98a' });
+  bx('zfAshlar', M, -W / 2 - 0.25, W / 2 + 0.25, gr.lo - gy - 1.2, 0.02, -D / 2 - 0.25, front + 0.25, { c: '#d0c4ac' });
   // the block: back part, the two solid sides of the hall, the roof over the hall, the full-width front slab with its three openings, the wall over it
-  wall(-W / 2, W / 2, 0, ZH, -D / 2, front - 6.8);
-  wall(-W / 2, -IW / 2, 0, ZH, front - 6.8, front - SL); wall(IW / 2, W / 2, 0, ZH, front - 6.8, front - SL);
-  wall(-IW / 2, IW / 2, IH + 0.3, ZH, front - 6.8, front - SL);
+  wall(-W / 2, W / 2, 0, ZH, -D / 2, front - HB);
+  wall(-W / 2, -IW / 2, 0, ZH, front - HB, front - SL); wall(IW / 2, W / 2, 0, ZH, front - HB, front - SL);
+  wall(-IW / 2, IW / 2, IH + 0.3, ZH, front - HB, front - SL);
   wall(-W / 2, W / 2, SLAB_H, ZH, front - SL, front);
   const slab = new THREE.Shape(); slab.moveTo(-W / 2, 0); slab.lineTo(W / 2, 0); slab.lineTo(W / 2, SLAB_H); slab.lineTo(-W / 2, SLAB_H); slab.lineTo(-W / 2, 0);
-  slab.holes.push(pointedPath(0, IW / 2, 6.0, IH)); slab.holes.push(pointedPath(-9.4, 1.7, 3.6, 6.4)); slab.holes.push(pointedPath(9.4, 1.7, 3.6, 6.4));
+  slab.holes.push(pointedPath(0, IW / 2, 6.4, IH)); slab.holes.push(pointedPath(-9.9, 1.1, 3.4, 5.4)); slab.holes.push(pointedPath(9.9, 1.1, 3.4, 5.4));
   extrude('zfLow', slab, SL, { M: mul(M, tr(0, 0, front - SL)), uv: 'keep', uvk: [1 / W, 1 / SLAB_H], uvo: [0.5, 0] });
   panel('zfUp', W, ZH - SLAB_H, { M: mul(M, tr(0, SLAB_H, front + 0.01)) });
-  // the two side doorways: a black recess behind each
-  for (const sg of [-1, 1]) panel('dark', 3.6, 6.6, { M: mul(M, tr(sg * 9.4, 0, front - SL + 0.02)), c: '#17120d' });
-  // the Sala della Fontana: the floor with the channel, the marble side walls, the back wall with the niche, the muqarnas tiers in relief, the vaulted ceiling
-  bx('zfFloor', M, -IW / 2, IW / 2, 0.02, 0.06, front - 6.8, front - SL + 0.4);
-  for (const sg of [-1, 1]) panel('zfInt', 5.8, IH, { M: mul(M, mul(tr(sg * (IW / 2 - 0.01), 0, front - 6.8 + 2.9), rotY(-sg * PI / 2))) });
-  panel('zfNiche', IW, IH, { M: mul(M, tr(0, 0, front - 6.8 + 0.02)) });
-  for (let t = 0; t < 5; t++) bx('zfAshlar', M, -(1.15 - t * 0.2), 1.15 - t * 0.2, 3.2 + t * 0.62, 3.2 + t * 0.62 + 0.3, front - 6.8 + 0.02, front - 6.8 + 0.22 + t * 0.1, { c: t % 2 ? '#e0d4ae' : '#cbae5a' });
-  bx('zfPlain', M, -IW / 2, IW / 2, IH, IH + 0.3, front - 6.8, front - SL, { c: '#c9a24a' });
-  bx('glass', M, -0.4, 0.4, 0.05, 0.12, front - 6.8 + 0.1, front + 4.0, { c: '#5f95ad', noao: true });   // the water: from the foot of the niche, over the hall floor, out over the terrace
-  bx('marble', M, -0.55, 0.55, 0.06, 0.12, front - 6.8 + 0.02, front - 6.8 + 0.12, { c: '#efe9d6' });
-  // the terrace in front of the iwan, the cascade down to the pool between two flights of stairs, the gravel, and the long pool with its red coping
-  const TZ1 = front + 4.0, PZ0 = TZ1 + POOL_GAP, PW = 11.0;
-  bx('zfFloor', M0, -W / 2 - 0.4, W / 2 + 0.4, PODIUM, PODIUM + 0.04, front, TZ1);
-  for (let i = 0; i < 2; i++) {
-    const z0 = TZ1 + i * 1.0, z1 = z0 + 1.0, top = 0.8 - i * 0.4;
-    for (const sg of [-1, 1]) bx('zfFloor', M0, Math.min(sg * 1.0, sg * 4.6), Math.max(sg * 1.0, sg * 4.6), 0, top, z0, z1, { c: '#cbbf9f' });
-    bx('zfFloor', M0, -0.7, 0.7, 0, top - 0.02, z0, z1, { c: '#cbbf9f' });
-    bx('glass', M0, -0.7, 0.7, top - 0.02, top + 0.04, z0, z1, { c: '#6aa3b8', noao: true });                    // the sheet of water over each step
+  panel('zfRear', W, ZH, { M: mul(M, mul(tr(0, 0, -D / 2 - 0.01), rotY(PI))) });
+  // the short sides and the projecting bay in the middle of each, its turret and pyramid cap
+  for (const sg of [-1, 1]) {
+    panel('zfSide', D, ZH, { M: mul(M, mul(tr(sg * (W / 2 + 0.01), 0, 0), rotY(sg * PI / 2))) });
+    bx('zfAshlar', M, Math.min(sg * W / 2, sg * (W / 2 + PROJ)), Math.max(sg * W / 2, sg * (W / 2 + PROJ)), 0, ZH, -PW2, PW2);
+    panel('zfSide', PW2 * 2, ZH, { M: mul(M, mul(tr(sg * (W / 2 + PROJ + 0.01), 0, 0), rotY(sg * PI / 2))), uvk: [PW2 * 2 / ZD, 1], uvo: [0.5 - PW2 / ZD, 0] });
+    const Mt = mul(M, tr(sg * (W / 2 + PROJ - 1.5), ZH, 0));
+    bx('zfAshlar', Mt, -1.35, 1.35, 0, 2.7, -1.35, 1.35);
+    bx('flat', Mt, -1.6, 1.6, 2.7, 2.95, -1.6, 1.6, { c: '#d3c4a6' });
+    for (let q = 0; q < 4; q++) panel('flat', 0.8, 1.4, { M: mul(Mt, mul(rotY(q * PI / 2), tr(0, 0.7, 1.36))), c: '#2a2118' });
+    pyramid('flat', 3.0, 3.0, 1.9, { M: mul(Mt, tr(0, 2.95, 0)), c: '#7f8668', noao: true });
+    cyl('flat', 0.04, 0.06, 1.1, 4, { M: mul(Mt, tr(0, 4.75, 0)), c: '#3a3226', noao: true });
+    crenel(mul(M, tr(sg * (W / 2 + PROJ / 2), ZH, PW2 - 0.02)), PROJ, { c: '#c8b799' });
+    crenel(mul(M, mul(tr(sg * (W / 2 + PROJ / 2), ZH, -PW2 + 0.02), rotY(PI))), PROJ, { c: '#c8b799' });
+    panel('flat', 2.2, 5.4, { M: mul(M, tr(sg * 9.9, 0, front - SL + 0.02)), c: '#1c150f' });                // the dark behind the side doors
   }
-  for (const sg of [-1, 1]) bx('marble', M0, Math.min(sg * 0.7, sg * 1.0), Math.max(sg * 0.7, sg * 1.0), 0, PODIUM + 0.3, TZ1, TZ1 + 2.0, { c: '#e0d9c4' });
-  bx('zfGravel', M0, -W / 2 - 1.0, W / 2 + 1.0, 0.01, 0.05, TZ1 + 2.0, PZ0);
-  const PE = PZ0 + POOL_L + 1.2;
-  for (const [x0, x1, z0, z1] of [[-PW - 0.6, -PW, PZ0, PE], [PW, PW + 0.6, PZ0, PE], [-PW, PW, PZ0, PZ0 + 0.6], [-PW, PW, PE - 0.6, PE]]) bx('earth', M0, x0, x1, 0, 0.5, z0, z1, { c: '#a5614a' });
-  bx('glass', M0, -PW, PW, 0, 0.44, PZ0 + 0.6, PE - 0.6, { c: '#5f95ad', noao: true });
-  bx('zfGravel', M0, -W / 2 - 1.0, W / 2 + 1.0, 0.01, 0.05, PZ0 + POOL_L + 1.2, PZ0 + POOL_L + 7.8);
-  // the garden: clipped hedges along the pool, orange trees, palms by the corners of the palace
-  ensureTrunk();
-  const hz0 = PZ0 - 0.5, hz1 = hz0 + POOL_L + 1.2;
-  for (const sg of [-1, 1]) { bx('flat', M0, sg * (PW + 2.4) - 0.5, sg * (PW + 2.4) + 0.5, 0, 0.95, hz0, hz1, { c: '#3a6030' }); bx('flat', M0, sg * (PW + 5.0) - 0.5, sg * (PW + 5.0) + 0.5, 0, 0.95, hz0 + 3, hz1 - 3, { c: '#40693a' }); }
-  for (const [x, z] of [[-PW - 3.8, hz0 + 2], [PW + 3.8, hz0 + 2], [-PW - 3.8, hz1 - 2], [PW + 3.8, hz1 - 2], [-PW - 3.8, hz0 + 13], [PW + 3.8, hz0 + 13]]) {
-    const p = wpt([ob.cx, ob.cz], fr.nx, fr.nz, x, z); cyl('trunk', 0.14, 0.2, 2.0, 6, { p: [p[0], gy, p[1]], noao: true }); sphere('flat', 1.5, { p: [p[0], gy + 2.8, p[1]], seg: 7, ky: 0.9, c: '#4a7436', noao: true });
-    for (const [a, b] of [[0.6, 0.4], [-0.5, 0.6]]) sphere('flat', 0.22, { p: [p[0] + a * 1.2, gy + 3.0 + b, p[1] + b * 1.2], seg: 4, c: '#e08a24', noao: true });
+  // the Sala della Fontana: floor and channel, marble side walls, the back wall with the niche, the muqarnas tiers, the inner arch on its two columns, the rail
+  bx('zfFloor', M, -IW / 2, IW / 2, 0.02, 0.06, front - HB, front - 0.02);
+  for (const sg of [-1, 1]) panel('zfInt', 5.8, IH, { M: mul(M, mul(tr(sg * (IW / 2 - 0.01), 0, front - HB + 2.9), rotY(-sg * PI / 2))) });
+  panel('zfNiche', IW, IH, { M: mul(M, tr(0, 0, front - HB + 0.02)) });
+  for (let t = 0; t < 5; t++) bx('zfAshlar', M, -(1.15 - t * 0.2), 1.15 - t * 0.2, 3.2 + t * 0.62, 3.2 + t * 0.62 + 0.3, front - HB + 0.02, front - HB + 0.22 + t * 0.1, { c: t % 2 ? '#e0d4ae' : '#cbae5a' });
+  bx('flat', M, -IW / 2, IW / 2, IH, IH + 0.3, front - HB, front - SL, { c: '#c9a24a' });
+  const arc = new THREE.Shape(); arc.moveTo(-IW / 2, 3.9); arc.lineTo(-1.75, 3.9); arc.quadraticCurveTo(-1.75, 5.3, 0, 5.9); arc.quadraticCurveTo(1.75, 5.3, 1.75, 3.9); arc.lineTo(IW / 2, 3.9); arc.lineTo(IW / 2, 6.3); arc.lineTo(-IW / 2, 6.3); arc.lineTo(-IW / 2, 3.9);
+  extrude('zfAshlar', arc, 0.4, { M: mul(M, tr(0, 0, front - 2.0)) });
+  for (const sg of [-1, 1]) cyl('flat', 0.17, 0.2, 3.9, 8, { M: mul(M, tr(sg * 1.95, 0, front - 1.8)), c: '#e8e2d0' });
+  bx('flat', M, -IW / 2, IW / 2, 0.06, 1.15, front - 0.75, front - 0.65, { c: '#6a3a24' });
+  bx('glass', M, -0.4, 0.4, 0.05, 0.12, front - HB + 0.1, front - 0.8, { c: '#5f95ad', noao: true });
+  // in front: the channel's red kerbs, the low basin with its red rim over dry ground, the clipped hedges along the foot of the wall
+  const BZ0 = front + BAS_Z0, BZ1 = front + BAS_Z1, red = { c: '#b0705c' };
+  const [fx, fz] = wpt([ob.cx, ob.cz], fr.nx, fr.nz, 0, front + (BAS_Z0 + BAS_Z1) / 2), by = Math.min(0, groundY(fx, fz) - gy);   // the ground in front lies below the floor of the palace
+  bx('zfFloor', M, -W / 2 - 0.25, W / 2 + 0.25, by - 0.7, 0.04, front, front + 0.9, { c: '#cbbf9f' });                              // the stone step along the front
+  for (let i = 1; i < 4; i++) bx('zfFloor', M, -3.4, 3.4, by - 0.7, by * i / 4, front + 0.9 + (i - 1) * 0.35, front + 0.9 + i * 0.35, { c: '#cbbf9f' });
+  for (const sg of [-1, 1]) bx('flat', M, Math.min(sg * 0.5, sg * 0.75), Math.max(sg * 0.5, sg * 0.75), by - 0.6, by + 0.4, front + 1.9, BZ0, red);
+  bx('flat', M, -BAS_W, BAS_W, by - 0.6, by + 0.22, BZ0, BZ1, { c: '#cdbfae' });
+  for (const [x0, x1, z0, z1] of [[-BAS_W - 0.5, -BAS_W, BZ0, BZ1], [BAS_W, BAS_W + 0.5, BZ0, BZ1], [-BAS_W - 0.5, -0.75, BZ0 - 0.5, BZ0], [0.75, BAS_W + 0.5, BZ0 - 0.5, BZ0], [-BAS_W - 0.5, BAS_W + 0.5, BZ1, BZ1 + 0.5], [-1.4, 1.4, BZ0 + 3.2, BZ0 + 4.6]]) bx('flat', M, x0, x1, by - 0.6, by + 0.55, z0, z1, red);
+  for (const sg of [-1, 1]) bx('flat', M, Math.min(sg * 12.4, sg * 17.2), Math.max(sg * 12.4, sg * 17.2), by - 0.5, by + 0.75, front + 1.0, front + 1.9, { c: '#3a6030' });
+  // the parapet with its merlons
+  for (let q = 0; q < 4; q++) crenel(mul(M, mul(rotY(q * PI / 2), tr(0, ZH, (q % 2 ? W : D) / 2 - 0.02))), q % 2 ? D : W, { c: '#c8b799' });
+  bx('flat', M, -W / 2 - 0.15, W / 2 + 0.15, ZH - 0.35, ZH, -D / 2 - 0.15, D / 2 + 0.15, { c: '#c3b193' });
+  // what is left of the attic: two ochre pavilions and a low broken wall between them, set back from the front
+  for (const x of [-7.2, 9.0]) {
+    bx('zfAshlar', M, x - 2.2, x + 2.2, ZH, ZH + 3.0, -4.2, 0.4, { c: '#e2b088' });
+    bx('flat', M, x - 2.5, x + 2.5, ZH + 3.0, ZH + 3.35, -4.5, 0.7, { c: '#c98f6e' });
+    bx('zfAshlar', M, x - 0.9, x + 0.9, ZH + 3.35, ZH + 4.2, -2.8, -1.0, { c: '#e2b088' });
+    for (const dz of [0.41, -4.21]) panel('flat', 1.3, 2.0, { M: mul(M, mul(tr(x, ZH + 0.4, dz), rotY(dz > 0 ? 0 : PI))), c: '#2f231c' });
   }
-  for (const [x, z] of [[-W / 2 - 3.0, front + 2], [W / 2 + 3.0, front + 2], [-W / 2 + 3.0, front + 9], [W / 2 - 3.0, front + 9]]) { const p = wpt([ob.cx, ob.cz], fr.nx, fr.nz, x, z); palm(p[0], gy, p[1], 9.5); }
-  // the parapet with its merlons, the inscription is on the wall; the corner turrets with their cones; the pink belvedere on the roof
-  for (let q = 0; q < 4; q++) crenel(mul(M, mul(rotY(q * PI / 2), tr(0, ZH, (q % 2 ? W : D) / 2 - 0.02))), q % 2 ? D : W, { c: '#d3bd8c' });
-  bx('zfPlain', M, -W / 2 - 0.15, W / 2 + 0.15, ZH - 0.5, ZH, -D / 2 - 0.15, D / 2 + 0.15, { c: '#c9b284' });
-  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const Mt = mul(M, tr(x * (W / 2 - 0.9), ZH, z * (D / 2 - 0.9))); cyl('zfAshlar', 0.85, 0.95, 2.6, 8, { M: Mt }); cone('zfPlain', 1.05, 1.8, 8, { M: mul(Mt, tr(0, 2.6, 0)), c: '#c9b284' }); sphere('flat', 0.18, { M: mul(Mt, tr(0, 4.55, 0)), seg: 5, c: '#c9a24a', noao: true }); }
-  defMat('zfPink', 256, 128, [14, 6], (g, w, h) => { g.fillStyle = '#c0645a'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 400, 2, 820, ['rgba(120,50,40,0.18)', 'rgba(240,190,170,0.14)']); g.fillStyle = '#2a1e1c'; for (let i = 0; i < 4; i++) { const cx = (i + 0.5) * w / 4; g.beginPath(); g.moveTo(cx - 16, h); g.lineTo(cx - 16, 48); g.arc(cx, 48, 16, Math.PI, 0); g.lineTo(cx + 16, h); g.fill(); } });
-  bx('zfPink', M, -7, 7, ZH, ZH + 5.2, -3.4, 3.4);
-  bx('zfPlain', M, -7.4, 7.4, ZH + 5.2, ZH + 5.7, -3.8, 3.8, { c: '#d9a99a' });
-  for (const sg of [-1, 1]) bx('zfPink', M, sg * 9.2 - 1.7, sg * 9.2 + 1.7, ZH, ZH + 3.8, -2.2, 2.2);
+  for (const [x0, x1, h] of [[-5.0, -0.8, 1.9], [-0.8, 2.6, 1.3], [2.6, 6.8, 2.2]]) bx('zfAshlar', M, x0, x1, ZH, ZH + h, -2.4, -1.6, { c: '#d29678' });
   return end('La Zisa');
 }
-const ZIS_WALLS = (() => {   // the podium (the facade, the cascade), the pool's coping and the hedges: all are walls to a car
+const BAS_Z0 = 4.5, BAS_Z1 = 13.5, BAS_W = 5.5;
+const ZIS_WALLS = (() => {   // the block and its bays keep the footprint's walls; the basin and the hedges in front are walls to a car too
   const O = [ZIS.ob.cx, ZIS.ob.cz], { nx, nz } = ZIS.fr, f = ZIS.D / 2, out = [];
-  out.push(...rectSegs(O, nx, nz, -ZIS.W / 2 - 1.2, ZIS.W / 2 + 1.2, -f - 1.2, f + 4.0));                                   // the podium
-  const p0 = f + 4.0 + POOL_GAP, p1 = p0 + POOL_L + 1.2;
-  out.push(...rectSegs(O, nx, nz, -11.6, 11.6, p0, p1));                                                                    // the pool
-  for (const sg of [-1, 1]) out.push(...rectSegs(O, nx, nz, sg * 13.4 - 0.5, sg * 13.4 + 0.5, p0 - 0.5, p1));               // the hedges beside it
+  out.push(...rectSegs(O, nx, nz, -BAS_W - 0.5, BAS_W + 0.5, f + BAS_Z0 - 0.5, f + BAS_Z1 + 0.5));
+  for (const sg of [-1, 1]) { out.push(...rectSegs(O, nx, nz, Math.min(sg * 12.4, sg * 17.2), Math.max(sg * 12.4, sg * 17.2), f + 1.0, f + 1.9)); out.push(...rectSegs(O, nx, nz, Math.min(sg * 0.5, sg * 0.75), Math.max(sg * 0.5, sg * 0.75), f + 1.9, f + BAS_Z0)); }
+  out.push(...rectSegs(O, nx, nz, -ZIS.W / 2 - 0.25, ZIS.W / 2 + 0.25, f, f + 0.9));
   return out;
 })();
+{ const [x, z] = wpt([ZIS.ob.cx, ZIS.ob.cz], ZIS.fr.nx, ZIS.fr.nz, 0, ZIS.D / 2 + (BAS_Z0 + BAS_Z1) / 2); TREE_CLEAR.push([r1(x), r1(z), 15]); }   // no generic tree in the basin or against the front
 export const ZISA = { name: 'La Zisa', x: -1770, z: -116, radius: 80, skipIds: [FP.zisa.id], build: buildZisa, walls: ZIS_WALLS };
 
 // ====================================================================================================

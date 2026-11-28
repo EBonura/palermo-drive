@@ -13,12 +13,16 @@
 //   * street walls (kinds x worn plaster, n lime wash, s rough stone, q block, p hoarding, o and m old rubble and render grown over, and w or n with a `rail` on top): the fences within 8 m of a carriageway are re-read by src/fence-walls.js (and the mapped walls beside a street or a fast road finished by their surroundings) and arrive
 //     here as walls carrying `fence`; they sit on the same 2.5 m pieces on the same line, break at the speed the fence did and push the car back as it did. A rail on a low wall is a panel of
 //     the railing or mesh instanced mesh that goes with its piece. ?nostreetwalls draws the fences as mapped.
+//   * named stretches (src/wall-looks.js): a few lines whose real look is known from photos (balustrades, low walls with railings, open fences). Only what is drawn differs: the
+//     pieces collide and break as the map's own. The extra stone and planting go into the wall mesh and the panels into the tile's instanced panel meshes (one more draw call only
+//     in a tile that had no panel of that style yet).
 // Everything is baked at full detail only (like the building walls); the draw cost is four calls per tile at most.
 import * as THREE from 'three';
 import { Buf, Grow, groundY, hooks, rasterMaskIter } from './core.js';
 import { sliceOver } from './slice.js';
 import { wallMaterial, wallTextureSteps, LAYER } from './wall-tex.js';
 import { roadsideWalls } from './fence-walls.js';
+import { dressWalls } from './wall-looks.js';
 import { expresswayRails, isFastRoad } from './expressway.js';
 import { buildSigns } from './direction-signs.js';
 import { sfx } from './sfx.js';
@@ -261,6 +265,7 @@ function outOfCuts(r) {
   if (run.length >= 4) runs.push(run);
   return runs.map(p => ({ ...r, p }));
 }
+const stepOf = r => r.k === 'f' || r.k === 'g' || r.fence ? PANEL : 4;   // the length of the pieces a record is built in
 function resample(p, step) { // flat polyline -> points about `step` apart (at most 20 % longer), keeping the corners
   const out = [[p[0], p[1]]];
   for (let k = 2; k < p.length; k += 2) {
@@ -285,6 +290,50 @@ class WBuf extends Buf {
 // that src/landmarks.js builds. So these two are drawn 0.45 m high (vh); they stay 2.5 m for how they break and collide, and for the pieces that fly off.
 const PRETORIA = [71.5, 25.8, 26];
 const lowPrecinct = r => r.k === 'w' && r.h > 2 && r.p.every((v, i) => i % 2 || Math.hypot(v - PRETORIA[0], r.p[i + 1] - PRETORIA[1]) < PRETORIA[2]) ? { ...r, vh: 0.45 } : r;
+// ---------- the stone and planting of a named stretch (src/wall-looks.js), into the wall mesh ----------
+// an upright box of the texture layer `ly` along the unit direction (ux, uz): half length hl, half width hw, from y0 to y1; four sides, and the top when asked
+function block(B, ly, cx, cz, ux, uz, hl, hw, y0, y1, col, top = true, foot = 0.85) {
+  B.layer = ly.i;
+  const side = (nx, nz, out, half) => {
+    const dx = nz, dz = -nx, x = cx + nx * out, z = cz + nz * out;
+    for (const [e, up] of [[-1, 0], [1, 0], [1, 1], [-1, 0], [1, 1], [-1, 1]]) B.v(x + dx * e * half, up ? y1 : y0, z + dz * e * half, nx, 0, nz, col, e * half / ly.pw, up ? 0 : (y1 - y0) / ly.ph, up ? 1 : foot);
+  };
+  side(-uz, ux, hw, hl); side(uz, -ux, hw, hl); side(ux, uz, hl, hw); side(-ux, -uz, hl, hw);
+  if (top) for (const [e, s] of [[-1, 1], [1, 1], [1, -1], [-1, 1], [1, -1], [-1, -1]]) { const x = cx + ux * e * hl - uz * s * hw, z = cz + uz * e * hl + ux * s * hw; B.v(x, y1, z, 0, 1, 0, col, x / ly.pw, z / ly.ph, 1.08); }
+}
+const BUSH = ['#58763a', '#4a6a30', '#6a8242', '#51703a'].map(h => new THREE.Color(h));
+function bush(B, x, y, z, r, col) {   // a squat six sided clump: 30 triangles
+  const rings = [[0.75, -0.08], [1, 0.34], [0.62, 0.7]], at = (k, i) => { const a = i / 6 * Math.PI * 2, [q, h] = rings[k]; return [x + Math.cos(a) * r * q, y + h * r * 1.35, z + Math.sin(a) * r * q, Math.cos(a), Math.sin(a), h]; };
+  const put = (p, ny) => B.v(p[0], p[1], p[2], p[3] * (1 - ny), ny, p[4] * (1 - ny), col, (p[0] + p[2]) / 1.2, -p[1] / 1.2, 0.75 + p[5] * 0.45);
+  for (let i = 0; i < 6; i++) {
+    for (let k = 0; k < 2; k++) for (const [kk, j] of [[k, i + 1], [k, i], [k + 1, i], [k, i + 1], [k + 1, i], [k + 1, i + 1]]) put(at(kk, j), kk * 0.25);
+    put(at(2, i + 1), 0.7); put(at(2, i), 0.7); put([x, y + r * 1.12, z, 0, 0, 1], 1);
+  }
+}
+// what stands on and round one piece a-b of a stretch with the look L: a coping, a balustrade, pillars, a bush
+function dressing(B, L, a, b, i, last, col) {
+  const dx = b.x - a.x, dz = b.z - a.z, len = hh(dx, dz); if (len < 0.3) return;
+  const ux = dx / len, uz = dz / len, mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2, top = (a.y1 + b.y1) / 2;
+  const along = t => [a.x + dx * t, a.z + dz * t, a.y1 + (b.y1 - a.y1) * t];
+  if (L.coping) block(B, LAYER.cap, mx, mz, ux, uz, len / 2, L.th / 2 + 0.07, top - 0.02, top + 0.13, new THREE.Color(L.coping));
+  if (L.balus) {   // balusters under a coping
+    const n = Math.max(2, Math.round(len / 0.44)), h = L.balus.h - 0.16;
+    for (let k = 0; k < n; k++) { const [x, z, y] = along((k + 0.5) / n); block(B, LAYER.cap, x, z, ux, uz, 0.08, 0.1, y - 0.02, y + h, col, false); }
+    block(B, LAYER.cap, mx, mz, ux, uz, len / 2, L.th / 2 + 0.04, top + h, top + L.balus.h, col);
+  }
+  if (L.pier) {
+    const p = L.pier, ends = []; if (i % p.every === 0) ends.push(a); if (i === last) ends.push(b);
+    for (const e of ends) {
+      const g = groundY(e.x, e.z), w = p.w / 2;
+      block(B, LAYER[L.ly], e.x, e.z, ux, uz, w, w, g - 0.45, g + p.h, col, false, 0.76);
+      block(B, LAYER.cap, e.x, e.z, ux, uz, w + 0.07, w + 0.07, g + p.h, g + p.h + 0.12, col); block(B, LAYER.cap, e.x, e.z, ux, uz, w * 0.5, w * 0.5, g + p.h + 0.12, g + p.h + 0.28, col);
+    }
+  }
+  if (L.shrub && rnd01(mx, mz) < L.shrub.share) {
+    const t = 0.25 + 0.5 * rnd01(mz, mx), [x, z, y] = along(t), r = 0.45 + 0.3 * rnd01(x * 1.7, z * 0.6);
+    B.layer = LAYER.h.i; bush(B, x, y - 0.05, z, r, BUSH[(rnd01(z, x * 2.3) * BUSH.length) | 0]);
+  }
+}
 const OFF = typeof location !== 'undefined' && new URLSearchParams(location.search).has('nofences');   // ?nofences: debug, the world as it was before walls and fences
 const NOROAD = typeof location !== 'undefined' && new URLSearchParams(location.search).has('nostreetwalls');   // ?nostreetwalls: debug, the fences beside a street as mapped
 export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and buildings, to tell the fences beside a street (src/fence-walls.js)
@@ -299,6 +348,7 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
   if ((!list || !list.length) && !signs) return null;
   list = (list || []).map(lowPrecinct);
   if (hooks.inCut) list = list.flatMap(outOfCuts);
+  list = dressWalls(list, r => resample(r.p, stepOf(r)));   // the named stretches with their real look (src/wall-looks.js)
   panelAssets();
   yield* wallTextureSteps();   // the wall textures, a layer per step, the first time only
   const group = new THREE.Group(); group.name = 'fences';
@@ -307,7 +357,7 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
   const tk = 'f' + key;
   const addSeg = (ax, az, bx, bz, fn) => { const s = [ax, az, bx, bz]; if (fn) s.fn = fn; wallGrid.addSeg(tk, s, ax, az, bx, bz); };
   for (let li = 0; li < list.length; li++) {
-    const r = list[li], pts = resample(r.p, r.k === 'f' || r.k === 'g' || r.fence ? PANEL : 4);
+    const r = list[li], pts = resample(r.p, stepOf(r));
     if (sliceOver()) yield;
     if (r.k === 'f' || r.k === 'g') {
       const st = r.k === 'g' ? (r.s >= 3 ? r.s : 3) : r.s || 0, rail = r.k === 'g';   // a guard rail is a W-beam, single unless it says double
@@ -323,15 +373,16 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
       continue;
     }
     // solid and breakable walls
-    const K = KIND[r.k] || KIND.w, hw = K.th / 2, base = new THREE.Color(K.col[(rnd01(r.p[0], r.p[1]) * K.col.length) | 0]);
-    const top = new THREE.Color().copy(base).multiplyScalar(1.1), foot = 0.76, LY = LAYER_OF[r.k] || LAYER[r.k] || LAYER.w, CAP = LAYER.cap;
+    const L0 = r.look;   // a named stretch: drawn as its look says, collided as the record says
+    const K = KIND[r.k] || KIND.w, hw = (L0?.th ?? K.th) / 2, base = new THREE.Color(L0?.col || K.col[(rnd01(r.p[0], r.p[1]) * K.col.length) | 0]);
+    const top = new THREE.Color().copy(base).multiplyScalar(1.1), foot = 0.76, LY = LAYER[L0?.ly] || LAYER_OF[r.k] || LAYER[r.k] || LAYER.w, CAP = LAYER.cap;
     let sAcc = 0;
     const V = pts.map((q, i) => {
       const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = hh(dx, dz) || 1, nx = -dz / l, nz = dx / l;
       if (i) sAcc += hh(q[0] - pts[i - 1][0], q[1] - pts[i - 1][1]);
       const g = groundY(q[0], q[1]);
-      let y0 = g - 0.45, y1 = g + (r.vh ?? r.h), drop = 0;
-      if (r.k === 'r') { const gl = groundY(q[0] + nx * 1.6, q[1] + nz * 1.6), gr = groundY(q[0] - nx * 1.6, q[1] - nz * 1.6); drop = Math.abs(gl - gr); y0 = Math.min(gl, gr, g) - 0.4; y1 = Math.max(gl, gr, g) + 0.3; if (y1 - y0 < 1.4) y1 = y0 + 1.4; }
+      let y0 = g - 0.45, y1 = g + (L0 ? L0.h : r.vh ?? r.h), drop = 0;
+      if (r.k === 'r') { const gl = groundY(q[0] + nx * 1.6, q[1] + nz * 1.6), gr = groundY(q[0] - nx * 1.6, q[1] - nz * 1.6); drop = Math.abs(gl - gr); y0 = Math.min(gl, gr, g) - 0.4; if (!L0) { y1 = Math.max(gl, gr, g) + 0.3; if (y1 - y0 < 1.4) y1 = y0 + 1.4; } }
       return { x: q[0], z: q[1], nx, nz, y0, y1, s: sAcc, drop };
     });
     for (let i = 0; i + 1 < V.length; i++) {
@@ -342,6 +393,7 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
       const L = [[a.x + a.nx * hw, a.z + a.nz * hw], [b.x + b.nx * hw, b.z + b.nz * hw]], R = [[a.x - a.nx * hw, a.z - a.nz * hw], [b.x - b.nx * hw, b.z - b.nz * hw]];
       // one vertex: end e (0 a, 1 b) of the face P at height y; u over the layer's width along the wall, v over its height below the wall top (so a stone course follows the wall)
       const vt = (P, e, y, nx, nz, k) => wall.v(P[e][0], y, P[e][1], nx, 0, nz, base, E[e].s / LY.pw, (E[e].y1 - y) / LY.ph, k);
+      if (!L0?.bare) {
       wall.layer = LY.i;
       for (const [e, yy, k] of [[0, 0, foot], [1, 0, foot], [1, 1, 1], [0, 0, foot], [1, 1, 1], [0, 1, 1]]) vt(L, e, yy ? E[e].y1 : E[e].y0, a.nx, a.nz, k);      // left face
       for (const [e, yy, k] of [[1, 0, foot], [0, 0, foot], [0, 1, 1], [1, 0, foot], [0, 1, 1], [1, 1, 1]]) vt(R, e, yy ? E[e].y1 : E[e].y0, -a.nx, -a.nz, k);   // right face
@@ -355,11 +407,14 @@ export function* buildFences(list, key, ctx) {   // ctx: the tile's roads and bu
         } }
       wall.layer = CAP.i;   // the cap
       for (const [P, e] of [[L, 0], [L, 1], [R, 1], [L, 0], [R, 1], [R, 0]]) wall.v(P[e][0], E[e].y1, P[e][1], 0, 1, 0, top, P[e][0] / CAP.pw, P[e][1] / CAP.ph, 1);
+      }
+      if (L0) dressing(wall, L0, a, b, i, V.length - 2, base);
       const len = hh(b.x - a.x, b.z - a.z);
       if (len > 0.3) {
         let fn = null, rails = null;
-        if (r.rail && nPanels < MAX_PANELS) {   // a rail on the wall: a panel on top of this piece, gone with it
-          const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2, st = r.rail.s, rp = { id: wid + 'r', st, x: mx, z: mz, y: (a.y1 + b.y1) / 2 - 0.04, yaw: Math.atan2(-(b.z - a.z), b.x - a.x), len, h: r.rail.h, i: panels[st].length, tile: null, gone: false };
+        const onTop = L0 ? L0.rail : r.rail;
+        if (onTop && nPanels < MAX_PANELS) {   // a rail on the wall: a panel on top of this piece, gone with it
+          const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2, st = onTop.s, rp = { id: wid + 'r', st, x: mx, z: mz, y: (a.y1 + b.y1) / 2 - 0.04 + (L0?.coping ? 0.13 : 0), yaw: Math.atan2(-(b.z - a.z), b.x - a.x), len, h: onTop.h, i: panels[st].length, tile: null, gone: false };
           panels[st].push(rp); nPanels++; rails = [rp];
         }
         if (breakable) {

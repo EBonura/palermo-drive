@@ -9,7 +9,7 @@ import { FP } from './landmarks-city-data.js';
 import { PITCH_Y } from './stadium-ground.js';
 import { buildCrowd } from './stadium-crowd.js';
 
-// grey-ochre limestone of the Pellegrino cliffs (shared by the Utveggio footing and the Santuario backdrop): mottled ochre and lichen-grey patches, short horizontal bedding cracks with a pale lip
+// grey-ochre limestone of the Pellegrino cliffs (the Utveggio footing; the Santuario has its own rock): mottled ochre and lichen-grey patches, short horizontal bedding cracks with a pale lip
 // under each, a few vertical joints and dark scrub specks. No long vertical streaks (they read as wood grain).
 function cliffMat() {
   defMat('cliff', 256, 256, [9, 9], (g, w, h) => {
@@ -365,7 +365,9 @@ export const POLITEAMA = {
 };
 
 // ====================================================================================================
-// 2. Stadio Renzo Barbera: the OSM ring (outer wall, hole = the playing area) becomes a two-tier bowl, canopies on the long sides,
+// 2. Stadio Renzo Barbera (front from Commons photos, names only: Stadio Barbera Palermo.jpg, Stadio comunale renzo barbera (PALERMO STADIUM).JPG, Stadio Renzo Barbera 2022 - 01.jpg:
+//    teal roof edge, white twin-fin towers with blue banded stair drums, glass curtain wall, open stand structure, the gold name and a club banner; the advertising banner of the photos is not copied,
+//    the exact tower spacing is not measured). The OSM ring (outer wall, hole = the playing area) becomes a two-tier bowl, canopies on the long sides,
 //    four floodlight towers, a red running track round the pitch, and the vehicle gate: the main entrance in the middle of the front.
 // ====================================================================================================
 // The front is the covered Tribuna, the long side towards Viale del Fante (west-south-west): the OSM roof polygon (way 124120091) is that stand to the metre, the entrance=main nodes
@@ -438,6 +440,25 @@ function buildStadio() {
   defMat('stFacade', 256, 512, [13, 22], (g, w, h) => paintFacade(g, w, h, 13, 22, { base: '#dfdcd2', trim: '#c7c3b8', glass: '#35606c', seed: 505,
     bands: [{ y: 17.2, h: 3.4, c: '#2e7f94' }, { y: 8.6, h: 0.5, c: '#bdb9ae' }], pil: { xs: [0, 6.5], w: 1.0, c: '#efede6' },
     rows: [{ y0: 1.2, y1: 4.4, n: 3, m: 2.0, w: 1.6, kind: 'rect', fr: 0.1, glass: '#4a5560' }, { y0: 10.0, y1: 13.2, n: 3, m: 2.0, w: 2.2, kind: 'rect', fr: 0.1, glass: '#3f6a7a' }] }), { side: THREE.DoubleSide });
+  // the main front towards Viale del Fante, one 13 m bay: cream plinth with doors, the green-blue curtain wall, a pale curved gallery, the open underside of the stand with its steel struts, a dark teal band
+  defMat('stGlazed', 256, 512, [13, 22], (g, w, h) => {
+    const X = (m) => m / 13 * w, Y = (m) => h - m / 22 * h, R = (x0, y0, x1, y1, c) => { g.fillStyle = c; g.fillRect(X(x0), Y(y1), X(x1 - x0), Y(y0) - Y(y1)); };
+    R(0, 0, 13, 22, '#d8d2bf'); for (let x = 0.7; x < 13; x += 3.2) R(x, 0, x + 1.9, 3.4, '#33383a'); R(0, 4.2, 13, 4.6, '#b9b3a2');
+    R(0, 5.4, 13, 11.2, '#c9d4d2'); for (let x = 0.15; x < 13; x += 1.08) for (let y = 5.6; y < 11; y += 1.38) R(x, y, x + 0.94, y + 1.24, ['#4f8587', '#5f9a99', '#7cb0ab', '#3f6f78'][Math.floor(x * 3 + y * 7) % 4]);
+    R(0, 11.2, 13, 12.9, '#d6d0bc'); R(0, 12.65, 13, 12.9, '#efe9d6'); for (let x = 0.2; x < 13; x += 0.65) R(x, 11.5, x + 0.4, 12.2, '#4a4e4c');
+    R(0, 12.9, 13, 18.6, '#262b2c'); for (let k = 0; k < 5; k++) R(0, 13.6 + k * 1.05, 13, 13.8 + k * 1.05, '#4a4c47');
+    g.strokeStyle = '#a7aaa4'; g.lineWidth = 3; for (let x = 0; x < 13; x += 3.25) { g.beginPath(); g.moveTo(X(x), Y(12.9)); g.lineTo(X(x + 1.6), Y(18.6)); g.lineTo(X(x + 3.25), Y(12.9)); g.moveTo(X(x + 1.6), Y(18.6)); g.lineTo(X(x + 1.6), Y(15.4)); g.stroke(); }
+    R(0, 18.6, 13, 22, '#2b6f86'); R(0, 18.6, 13, 18.95, '#d6d0bc'); R(0, 20.8, 13, 21.1, '#4d93a6');
+    noiseDots(g, w, h, 500, 2, 513, ['rgba(40,45,40,0.12)', 'rgba(250,250,240,0.10)']);
+  }, { side: THREE.DoubleSide });
+  // the board under the roof: the name, gold on dark teal, and the club's pink banner below it (it fills the right half of the gate's name canvas)
+  const paintBoard = (g, w, h) => {
+    g.fillStyle = '#1e4e5a'; g.fillRect(0, 0, w, 96); g.fillStyle = '#e2bb52'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = '700 34px Arial, Helvetica, sans-serif'; g.fillText('S T A D I O   C O M U N A L E', w / 2, 26, w - 30); g.font = '900 46px Arial, Helvetica, sans-serif'; g.fillText('R E N Z O   B A R B E R A', w / 2, 70, w - 30);
+    g.fillStyle = '#e387ab'; g.fillRect(0, 96, w, 96); g.fillStyle = '#17141a';
+    g.save(); g.translate(70, 144); for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(-42, -26 + k * 13); g.lineTo(30 - k * 6, -22 + k * 13); g.lineTo(14 - k * 6, -13 + k * 13); g.closePath(); g.fill(); } g.beginPath(); g.moveTo(18, -30); g.lineTo(44, -14); g.lineTo(20, -8); g.closePath(); g.fill(); g.restore();
+    g.fillStyle = '#ffffff'; g.font = '900 50px Arial, Helvetica, sans-serif'; g.fillText('#SIAMOAQUILE', w / 2 + 50, 146, w - 160);
+  };
   defMat('stTeal', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#287a78'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(0,50,60,0.3)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 2, h); noiseDots(g, w, h, 200, 2, 506, ['rgba(255,255,255,0.08)']); }, { side: THREE.DoubleSide });
   defMat('stRoofTop', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#c3cdc8'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(70,90,85,0.25)'; for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 2, h); noiseDots(g, w, h, 200, 2, 509, ['rgba(255,255,255,0.12)']); }, { side: THREE.DoubleSide });
   defMat('stRoofUnder', 0, 0, [1, 1], null, { roughness: 1, side: THREE.DoubleSide });
@@ -493,22 +514,26 @@ function buildStadio() {
   const fa = (y) => O.map((p, k) => [p[0], y(k), p[1]]);
   const ac = [0]; for (let k = 1; k <= N; k++) ac.push(ac[k - 1] + Math.hypot(O[k % N][0] - O[k - 1][0], O[k % N][1] - O[k - 1][1]));
   const FL = 0.27;   // v of the lower band's top in the facade texture
+  // the samples of the covered front (the long side towards Viale del Fante, WSW), in order along it
+  const front = (() => { const sgn = Vv[0] < 0 ? 1 : -1, av = Math.atan2(Vv[1] * sgn, Vv[0] * sgn), o = []; for (let k = 0; k < N; k++) { let d = k / N * 2 * PI - av; while (d > PI) d -= 2 * PI; while (d < -PI) d += 2 * PI; if (Math.abs(d) < 0.95) o.push([d, k]); } return o.sort((p, q) => p[0] - q[0]).map(p => p[1]); })();
+  const frontSet = new Set(front), isFront = (j) => frontSet.has(j % N) && frontSet.has((j + 1) % N);
   const fl = { l0: 1e9, l1: -1e9 };   // the cut's reach along the front, with the edge points [bottom, top, arc length] at both ends
-  gridMesh('stFacade', [fa(k => gO[k] - 0.8), fa(k => Math.max(gO[k], gI[k]) + 5.6)], (i, j) => [ac[j] / 13, i * FL], { wrap: true, skip: (i, j, a, b, c, d) => {
+  for (const key of ['stFacade', 'stGlazed']) gridMesh(key, [fa(k => gO[k] - 0.8), fa(k => Math.max(gO[k], gI[k]) + 5.6)], (i, j) => [ac[j] / 13, i * FL], { wrap: true, skip: (i, j, a, b, c, d) => {
+    if (isFront(j) !== (key === 'stGlazed')) return true;
     if (!overGate(false, a, b, c, d)) return false;
     for (const [p, q, k] of [[a, d, j], [b, c, j + 1]]) { const l = lat(p[0], p[2]); if (l < fl.l0) { fl.l0 = l; fl.A = [p, q, ac[k]]; } if (l > fl.l1) { fl.l1 = l; fl.B = [p, q, ac[k]]; } }
     return true;
   } });
   for (const [c0, c1] of [[fl.l1, hi], [lo, fl.l0]]) {   // (the bowl's samples run towards smaller u, so the strip nearer the larger u comes first)
     const cols = [c0, c1].map(l => { const f = (l - fl.l0) / (fl.l1 - fl.l0), m = (a, b) => a + (b - a) * f, [A, B] = [fl.A, fl.B], at = (q) => [m(A[q][0], B[q][0]), m(A[q][1], B[q][1]), m(A[q][2], B[q][2])]; return { b: at(0), t: at(1), u: m(A[2], B[2]) }; });
-    if (Math.abs(c1 - c0) > 0.05) gridMesh('stFacade', [cols.map(c => c.b), cols.map(c => c.t)], (i, j) => [cols[j].u / 13, i * FL], {});
+    if (Math.abs(c1 - c0) > 0.05) gridMesh('stGlazed', [cols.map(c => c.b), cols.map(c => c.t)], (i, j) => [cols[j].u / 13, i * FL], {});
   }
-  gridMesh('stFacade', [fa(k => Math.max(gO[k], gI[k]) + 5.6), fa(HF)], (i, j) => [ac[j] / 13, FL + i * (1 - FL)], { wrap: true });
+  for (const key of ['stFacade', 'stGlazed']) gridMesh(key, [fa(k => Math.max(gO[k], gI[k]) + 5.6), fa(HF)], (i, j) => [ac[j] / 13, FL + i * (1 - FL)], { wrap: true, skip: (i, j) => isFront(j) !== (key === 'stGlazed') });
   gridMesh('stConc', [fa(HF), fa(k => HF(k) + 0.8)], (i, j) => [ac[j] / 2, i], { wrap: true });
   // pylons on the outside (every 4th sample) and the teal eave ring round the whole rim
   const atGate = (x, z, w) => Math.abs(lat(x, z) - GATE.u) < w && dep(x, z) > 30;   // in front of the entrance block, within w of the gate's axis
   const BLOCK = GATE.halfW + PIER + DOOR + 1;   // half the width of the entrance block, and a metre
-  for (let k = 0; k < N; k += 4) { if (atGate(O[k][0], O[k][1], BLOCK)) continue; const Mk = frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]); bx('stConc', Mk, -0.6, 0.6, 0, HF(k) - gO[k] + 1.6, 0, 0.9, { c: '#efede6' }); }
+  for (let k = 0; k < N; k += 4) { if (frontSet.has(k) || atGate(O[k][0], O[k][1], BLOCK)) continue; const Mk = frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]); bx('stConc', Mk, -0.6, 0.6, 0, HF(k) - gO[k] + 1.6, 0, 0.9, { c: '#efede6' }); }
   const eaveIn = (k, d, dy) => [O[k][0] - D[k][0] * d, HF(k) + dy, O[k][1] - D[k][1] * d], eaveOut = (k, d, dy) => [O[k][0] + D[k][0] * d, HF(k) + dy, O[k][1] + D[k][1] * d];
   gridMesh('stTeal', [O.map((p, k) => eaveIn(k, 1.2, 0.5)), O.map((p, k) => eaveOut(k, 2.6, -0.5))], (i, j) => [j * 1.2, i * 3], { wrap: true });
   gridMesh('stTeal', [O.map((p, k) => eaveOut(k, 2.6, -0.5)), O.map((p, k) => eaveOut(k, 2.6, -1.4))], (i, j) => [j * 1.2, i], { wrap: true });
@@ -524,10 +549,23 @@ function buildStadio() {
       gridMesh('stRoofTop', [row(t0, h0 + 0.35, run), outerRow(h1 + 0.35, run, 6)], (i, j) => [j * 2, i * 4], {});
       gridMesh('stRoofUnder', [row(t0, h0, run), outerRow(h1, run, 6)], () => [0, 0], { flip: true, noao: true, c: '#555c60' });
       gridMesh('stTeal', [row(t0, h0 - 0.4, run), row(t0, h0 + 0.8, run)], (i, j) => [j, i], {});            // front fascia
-      gridMesh('stTeal', [outerRow(h1 - 2.4, run, 6), outerRow(h1 + 0.9, run, 6)], (i, j) => [j, i], {});     // back fascia, the tall teal edge seen from the street
-      for (let q = 0; q < run.length; q += 3) { const k = run[q]; if (atGate(O[k][0], O[k][1], BLOCK)) continue; bx('stConc', frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]), -0.6, 0.6, 0, gI[k] + h1 - gO[k] + 1.4, 1.2, 2.4, { c: '#efede6' }); }
+      gridMesh('stTeal', [outerRow(h1 - 3.4, run, 6.6), outerRow(h1 + 0.9, run, 5.4)], (i, j) => [j * 3, i], {});   // back fascia, the tall sloped teal edge seen from the street
+      gridMesh('stTeal', [outerRow(h1 - 5.0, run, 5.6), outerRow(h1 - 3.4, run, 5.6)], (i, j) => [j, i], { c: '#9fb4c4' });   // and the darker band under it
     }
     // the other long side (Tribuna Montepellegrino) and both ends are open to the sky in the satellite view: no roof there
+  }
+  // the front's towers: two white concrete fins rising past the roof, a blue core between them with a rounded stair drum in blue and white bands and a glass-block window above it. Below 6 m the
+  // fins stand 0.3 m out of the wall (the lapa has no collision with them); above it they step out
+  for (let q = 2; q < front.length - 1; q += 5) {
+    const k = front[q]; if (atGate(O[k][0], O[k][1], 17)) continue;
+    const T = frame(O[k][0], gO[k] - 0.8, O[k][1], D[k][0], D[k][1]), y1 = gI[k] - gO[k] + 30.3, FIN = '#e9e7df', BL = '#2c6f98';
+    for (const sg of [-1, 1]) { bx('stConc', T, sg * 2.3 - 0.35, sg * 2.3 + 0.35, 0, 6, -0.3, 0.3, { c: FIN }); bx('stConc', T, sg * 2.3 - 0.35, sg * 2.3 + 0.35, 6, y1, -0.3, 0.9, { c: FIN }); bx('stConc', T, sg * 2.3 - 0.3, sg * 2.3 + 0.3, 6, y1 + 1.6, 0.9, 6.9, { c: FIN }); bx('stConc', T, sg * 2.3 - 0.2, sg * 2.3 + 0.2, y1 + 1.6, y1 + 3.8, 5.4, 6.5, { c: FIN }); }
+    bx('stSteel', T, -1.95, 1.95, 8, y1 - 1.0, 0, 6.0, { c: BL });
+    for (let b = 0; b < 6; b++) cyl('stSteel', 1.75, 1.75, b % 2 ? 0.7 : 1.9, 8, { M: mul(T, tr(0, 8 + Math.ceil(b / 2) * 1.9 + Math.floor(b / 2) * 0.7, 5.9)), c: b % 2 ? FIN : '#3a82a8', open: true, t0: -PI / 2, tl: PI, noao: true });
+    sphere('stSteel', 1.75, { M: mul(T, tr(0, 15.8, 5.9)), c: '#b9c4bc', ky: 0.55, seg: 8, noao: true });
+    bx('stConc', T, -1.2, 1.2, 18.4, 24.2, 6.0, 6.08, { c: '#d9cfa8', noao: true });
+    for (let y = 19.3; y < 24; y += 1.0) bx('stSteel', T, -1.25, 1.25, y, y + 0.12, 6.08, 6.12, { c: '#6d7468', noao: true });
+    for (const x of [-0.4, 0.4]) bx('stSteel', T, x - 0.05, x + 0.05, 18.4, 24.2, 6.08, 6.13, { c: '#6d7468', noao: true });
   }
   // pitch and track, draped on the ground
   const PL = 0.2;   // the pitch is drawn this high over the (lifted) ground: over the raised and green layers of the streets (0.15, 0.16, and their depth offsets), and the lapa stands on it like on a kerb (CURB 0.15)
@@ -536,7 +574,7 @@ function buildStadio() {
   gridMesh('stPitch', rows, (i, j, p) => { const dx = p[0] - ob.cx, dz = p[2] - ob.cz; return [(dx * U[0] + dz * U[1]) / PW + 0.5, (dx * Vv[0] + dz * Vv[1]) / PH + 0.5]; }, { wrap: true, noao: true });
   // goals
   for (const s of [-1, 1]) { const Mg = frame(ob.cx + U[0] * 52.5 * s, groundY(cx, cz) + PL, ob.cz + U[1] * 52.5 * s, -U[0] * s, -U[1] * s);
-    bx('marble', Mg, -3.7, -3.6, 0, 2.44, 0, 0.12); bx('marble', Mg, 3.6, 3.7, 0, 2.44, 0, 0.12); bx('marble', Mg, -3.7, 3.7, 2.34, 2.44, 0, 0.12);
+    bx('stSteel', Mg, -3.7, -3.6, 0, 2.44, 0, 0.12); bx('stSteel', Mg, 3.6, 3.7, 0, 2.44, 0, 0.12); bx('stSteel', Mg, -3.7, 3.7, 2.34, 2.44, 0, 0.12);
     bx('rail', Mg, -3.7, 3.7, 0, 2.4, -2.0, -1.9, { noao: true }); }
   // the gate, the main entrance: a concrete tunnel from the front to a little way over the track (a floor that follows the ground, two abutments that fill the cut in the stands, a roof slab), and
   // in front of it the entrance block: two piers and a lintel round the opening, an attic with the name, and an arched side door each side (the three arches of the 1932 front). Axis of the gate: u = GATE.u
@@ -547,12 +585,16 @@ function buildStadio() {
     const grey = '#d2cfc6', pale = '#ffffff', w0 = GATE.vOut - 0.5, w1 = vf;
     defMat('stApron', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#cfccc2'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 400, 2, 511, ['rgba(60,60,55,0.12)', 'rgba(250,250,240,0.14)']); g.fillStyle = 'rgba(40,40,40,0.28)'; g.fillRect(0, 0, w, 2); g.fillRect(0, 0, 2, h); },
       { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 });
-    defMat('stName', 1024, 288, [1, 1], (g, w, h) => {
+    defMat('stName', 1024, 384, [1, 1], (cg) => {
+      const g = cg, w = 1024, h = 288;
+      g.save(); g.translate(512, 0); g.scale(1, 2); paintBoard(g, 512, 192); g.restore();
+      g.save(); g.scale(0.5, 384 / 288);
       g.fillStyle = '#e8e5db'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 300, 2, 512, ['rgba(60,60,55,0.10)', 'rgba(250,250,240,0.12)']);
       g.fillStyle = '#2e7f94'; g.fillRect(0, 0, w, 14); g.fillRect(0, h - 14, w, 14); g.fillStyle = '#e46fa0'; g.fillRect(40, 118, w - 80, 4);
       g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#1f6a80';
       g.font = '700 64px Arial, Helvetica, sans-serif'; g.fillText('S T A D I O', w / 2, 74);
       let fs = 150, t = 'RENZO BARBERA'; do { g.font = `900 ${fs}px Arial, Helvetica, sans-serif`; fs -= 4; } while (g.measureText(t).width > w - 90); g.fillText(t, w / 2, 198);
+      g.restore();
     });
     // floor
     const rows = [], nf = Math.ceil((vf - v1) / 4);
@@ -567,18 +609,23 @@ function buildStadio() {
     gb('stTeal', lo - PIER - 0.1, hi + PIER + 0.1, rb + 0.25, rb + 0.85, w1, w1 + 0.08, { noao: true });
     gb('stConc', lo - PIER, hi + PIER, yl, yt, w0, w1, { c: pale });
     gb('stTeal', lo - PIER - 0.5, hi + PIER + 0.5, yt, yt + 0.55, w0, w1 + 0.5, { noao: true });
-    panel('stName', hi - lo + 2 * PIER - 1.0, yt - yl - 0.5, { M: mul(Mg, tr(0, yl + 0.25, GATE.PD + 0.02)) });
+    panel('stName', hi - lo + 2 * PIER - 1.0, yt - yl - 0.5, { M: mul(Mg, tr(0, yl + 0.25, GATE.PD + 0.02)), uvk: [0.5, 1] });
     // the side doors: an arched recess in a block each side, dark inside
     for (const sg of [-1, 1]) {
       const xc = sg * (GATE.halfW + PIER + DOOR / 2), Md = mul(Mg, tr(xc, yb, -0.3)), oh = 0.8 + 4.6;
       archBay('stConc', DOOR, yl - yb, 2.8, oh, DOOR_D + 0.3, { M: Md, c: pale, oy0: 0.8 });
-      extrude('dark', archShape(2.8, oh - 0.8), 0.05, { M: mul(Mg, tr(xc, yg, 0.05)), c: '#2a2622', noao: true });
+      extrude('stSteel', archShape(2.8, oh - 0.8), 0.05, { M: mul(Mg, tr(xc, yg, 0.05)), c: '#2a2622', noao: true });
       gb('stTeal', GATE.u + sg * (GATE.halfW + PIER) - (sg < 0 ? DOOR : 0) - 0.15, GATE.u + sg * (GATE.halfW + PIER) + (sg > 0 ? DOOR : 0) + 0.15, yl, yl + 0.35, w0, GATE.vOut + DOOR_D + 0.15, { noao: true });
     }
     // the forecourt: a concrete apron from the front of the block, level with the ground (the service road runs into it)
     const aw = 5, al = 11, ar = [];
     for (let i = 0; i <= 3; i++) ar.push([0, 1, 2, 3, 4, 5, 6].map(k => { const q = P(lo - aw + (hi - lo + 2 * aw) * k / 6, vf + al * i / 3); return [q[0], groundY(q[0], q[1]) + 0.03, q[1]]; }));
     gridMesh('stApron', ar, (i, j, q) => [lat(q[0], q[2]) / 4, dep(q[0], q[2]) / 4], { noao: true });
+  }
+  // the name and the banner under the roof, over the main entrance
+  { const SW = 26, v = Math.max(...[-SW / 2, -SW / 4, 0, SW / 4, SW / 2].map(a => { const g0 = P(GATE.u + a, 0); return rayHit(SD.outer, g0[0], g0[1], SD.F[0], SD.F[1]); })) + 3.2, q = P(GATE.u, v), y = groundY(q[0], q[1]);
+    const Ms = frame(q[0], y, q[1], SD.F[0], SD.F[1]);
+    panel('stName', SW, 9.6, { M: mul(Ms, tr(0, 14.6, 0)), uvk: [0.5, 1], uvo: [0.5, 0] }); bx('stSteel', Ms, -SW / 2 - 0.2, SW / 2 + 0.2, 14.4, 24.4, -0.35, -0.04, { c: '#25363c', noao: true });
   }
   // perimeter fence 13 m outside the wall (Via del Fante side shows the sponsor boards on it), with a gate pier at each turnstile bay
   { const FO = 13;
@@ -597,6 +644,7 @@ function buildStadio() {
     const x = O[bk][0] + D[bk][0] * 8, z = O[bk][1] + D[bk][1] * 8, y = groundY(x, z), Mt = frame(x, y - 0.5, z, -D[bk][0], -D[bk][1]);
     cyl('stSteel', 0.4, 0.8, 52, 8, { M: Mt, c: '#e4e6e8' });
     bx('stSteel', Mt, -4.8, 4.8, 50.5, 51.8, -1.2, 0.2, { c: '#cfd2d6', noao: true });
+    bx('stSteel', Mt, -4.8, 4.8, 51.8, 55.6, -0.1, 0.12, { c: '#8d9298', noao: true });   // the frame the lamps are bolted to
     for (let r = 0; r < 3; r++) for (let q = 0; q < 7; q++) bx('stLamp', Mt, -4.5 + q * 1.5, -3.5 + q * 1.5, 51.8 + r * 1.3, 52.8 + r * 1.3, 0.1, 0.5, { noao: true });
   }
   // the crowd: rosanero fans on the seats of both tiers (src/stadium-crowd.js), none in the gate's tunnel or on the cut round it
@@ -710,49 +758,162 @@ function buildUtveggio() {
 export const UTVEGGIO = { name: 'Castello Utveggio', x: -503, z: -4000, radius: 80, skipIds: [FP.utveggio.id], build: buildUtveggio };
 
 // ====================================================================================================
-// 4. Santuario di Santa Rosalia: ochre convent-church built against the cliff, with a clock gable and a stair up from the road
+// 4. Santuario di Santa Rosalia (Monte Pellegrino), redrawn from Commons photos (names only): Santuario Santa Rosalia.jpg, Santuario di santa Rosalia a Palermo.jpg, Santuario Santa Rosalia ext.JPG,
+//    Monte Pellegrino BW 2012-10-09 15-27-29.JPG, Palermo Santuario di Santa Rosalia.jpg, Palermo - Santuario di Santa Rosalia - 2025-09-10 22-30-04 002.jpg; the 15 cm orthophoto of the Regione
+//    Siciliana for the layout (front to the west, rock along the south side and behind).
+//    Read: from the forecourt, a salmon-ochre convent wing on the left with balconies, green shutters and the Opera Don Orione lettering; on the right the cream church front with white stone pilasters
+//    and two heavy cornices, the clock and bell gable over its left bay, the marble portal with columns on a raised terrace with a balustrade, a carved white niche with the saint above it; the pale
+//    limestone cliff stands against the right end of the front and rises far above the roofs, with trees along its top.
+//    Not seen in any photo: the back and north sides (plain walls with windows), the grotto inside, the long stair from the road below (not built: the forecourt is at the road's level here).
+//    The front is as long as the mapped footprint (21.7 m), shorter than the real convent wing. The small mapped building at the south end (x25070) stands where the photos show rock: the cliff replaces it.
 // ====================================================================================================
+const SAN_A = [-0.291, 0.957], SAN_N = [-0.957, -0.291], SAN_MID = [-833.85, -5784.45];   // along the front towards the south (the viewer's right), out of the front, middle of the footprint's west edge
+const SAN_P = (u, v) => [SAN_MID[0] + SAN_A[0] * u + SAN_N[0] * v, SAN_MID[1] + SAN_A[1] * u + SAN_N[1] * v];
+const SAN_U = 10.85, SAN_LO = -1, SAN_HI = 19;   // the front canvas covers u -SAN_U..SAN_U, y SAN_LO..SAN_HI
+function sanFrontPaint(g, w, h) {
+  const sx = w / (2 * SAN_U), sy = h / (SAN_HI - SAN_LO), X = (u) => (u + SAN_U) * sx, Y = (y) => h - (y - SAN_LO) * sy;
+  const R = (u0, y0, u1, y1, c) => { g.fillStyle = c; g.fillRect(X(u0), Y(y1), (u1 - u0) * sx, (y1 - y0) * sy); };
+  const arch = (u, y0, y1, wd, c) => { const r = wd / 2; g.fillStyle = c; g.beginPath(); g.moveTo(X(u - r), Y(y0)); g.lineTo(X(u - r), Y(y1 - r)); g.ellipse(X(u), Y(y1 - r), r * sx, r * sy, 0, PI, 2 * PI); g.lineTo(X(u + r), Y(y0)); g.fill(); };
+  const tri = (u, y, wd, hh, c) => { g.fillStyle = c; g.beginPath(); g.moveTo(X(u - wd / 2), Y(y)); g.lineTo(X(u), Y(y + hh)); g.lineTo(X(u + wd / 2), Y(y)); g.fill(); };
+  const WHITE = '#ded8c8', SHADE = 'rgba(70,50,30,0.35)', GREEN = '#35604a', DKG = '#223f31';
+  const shut = (u, y0, y1, wd) => {   // a framed window with louvred green shutters
+    R(u - wd / 2 - 0.18, y0 - 0.18, u + wd / 2 + 0.18, y1 + 0.2, WHITE); R(u - wd / 2, y0, u + wd / 2, y1, GREEN); R(u - 0.04, y0, u + 0.04, y1, DKG);
+    for (let y = y0 + 0.18; y < y1 - 0.05; y += 0.22) R(u - wd / 2 + 0.07, y, u + wd / 2 - 0.07, y + 0.06, DKG);
+    R(u - wd / 2 - 0.3, y0 - 0.3, u + wd / 2 + 0.3, y0 - 0.18, SHADE);
+  };
+  const grille = (u, y0, y1, wd) => { R(u - wd / 2 - 0.18, y0 - 0.18, u + wd / 2 + 0.18, y1 + 0.18, WHITE); R(u - wd / 2, y0, u + wd / 2, y1, '#1f2224'); for (let a = u - wd / 2 + 0.2; a < u + wd / 2; a += 0.24) R(a, y0, a + 0.04, y1, '#8d8a80'); for (let y = y0 + 0.3; y < y1; y += 0.36) R(u - wd / 2, y, u + wd / 2, y + 0.05, '#8d8a80'); };
+  // convent wing
+  R(-SAN_U, SAN_LO, -4, SAN_HI, '#dcab83');
+  R(-SAN_U, SAN_LO, -4, 0.8, '#b79a80');
+  arch(-8.3, 0, 3.9, 2.4, '#e6c4a0'); for (let k = 0; k < 9; k++) { const a = PI + (k + 0.5) * PI / 9; g.strokeStyle = SHADE; g.lineWidth = 1.5; g.beginPath(); g.moveTo(X(-8.3) + Math.cos(a) * 0.9 * sx, Y(2.7) + Math.sin(a) * 0.9 * sy); g.lineTo(X(-8.3) + Math.cos(a) * 1.2 * sx, Y(2.7) + Math.sin(a) * 1.2 * sy); g.stroke(); }
+  arch(-8.3, 0, 3.4, 1.6, '#2f6a50'); R(-8.34, 0, -8.26, 2.6, DKG); R(-9.1, 2.6, -7.5, 2.68, DKG);
+  R(-10.55, 1.4, -9.65, 2.8, WHITE); for (let y = 1.6; y < 2.7; y += 0.22) R(-10.45, y, -9.75, y + 0.05, '#8d8a80');   // the stone plaque by the door
+  grille(-5.6, 1.3, 3.1, 1.2); grille(-6.8, 1.3, 3.1, 0.7);
+  R(-SAN_U, 4.35, -4, 4.6, '#e9d2b4');
+  for (const u of [-9.0, -5.9]) { shut(u, 5.2, 7.7, 1.25); tri(u, 8.05, 2.0, 0.55, '#ecd9bc'); R(u - 1.0, 7.9, u + 1.0, 8.08, WHITE); shut(u, 9.3, 10.9, 1.0); }
+  R(-SAN_U, 11.25, -4, 11.4, '#e9d2b4');
+  g.fillStyle = '#7a5138'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `bold ${Math.round(0.55 * sy)}px serif`; g.fillText('OPERA DON ORIONE', X(-7.4), Y(11.78), 6.2 * sx);
+  // church front
+  R(-4, SAN_LO, SAN_U, SAN_HI, '#e7c98e');
+  R(-4, SAN_LO, SAN_U, 1.4, '#c4b8a0');
+  R(-4, 8.0, SAN_U, 8.55, WHITE); R(-4, 7.85, SAN_U, 8.0, SHADE); R(-4, 12.25, SAN_U, 12.8, WHITE); R(-4, 12.1, SAN_U, 12.25, SHADE);
+  for (const [u0, u1] of [[-4, -3.45], [-0.35, 0.3], [7.75, 8.3]]) { R(u0, 1.4, u1, 18, WHITE); R(u1 - 0.12, 1.4, u1, 18, SHADE); }
+  // tower bay: grille with a stucco shell fan in a blind arch, balcony door, two small windows
+  arch(-1.95, 3.2, 5.0, 2.3, '#d9bd8a'); for (let k = 0; k <= 8; k++) { const a = PI + k * PI / 8; g.strokeStyle = '#f0e2c0'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(X(-1.95), Y(3.85)); g.lineTo(X(-1.95) + Math.cos(a) * 1.0 * sx, Y(3.85) + Math.sin(a) * 1.0 * sy); g.stroke(); }
+  grille(-1.95, 1.7, 3.35, 1.5);
+  shut(-1.95, 5.5, 7.45, 1.35); R(-2.9, 7.55, -1.0, 7.7, WHITE);
+  shut(-2.75, 9.5, 10.85, 0.8); shut(-1.15, 9.5, 10.85, 0.8);
+  // portal bay: the white marble surround round the door, side tablets, the window with its own pediment, the shutters either side of the niche
+  R(2.0, 1.4, 6.0, 5.2, '#d6d1c4'); arch(4, 1.4, 5.0, 2.2, '#b9b2a2'); arch(4, 1.4, 4.8, 1.85, '#3a2a1e'); R(3.97, 1.4, 4.03, 3.9, '#140e0a');
+  for (const u of [3.35, 3.7, 4.35, 4.7]) R(u - 0.03, 1.5, u + 0.03, 3.7, 'rgba(120,90,60,0.5)');
+  for (const u of [1.05, 6.95]) { R(u - 0.55, 2.1, u + 0.55, 4.0, '#e2ddd0'); for (let y = 2.35; y < 3.9; y += 0.22) R(u - 0.4, y, u + 0.4, y + 0.05, '#9d978a'); }
+  R(3.1, 5.55, 4.9, 6.95, WHITE); shut(4, 5.75, 6.7, 1.15); tri(4, 6.95, 2.6, 0.75, WHITE); tri(4, 7.03, 1.8, 0.45, '#cfc6b2');
+  for (const u of [1.35, 6.65]) shut(u, 9.35, 11.35, 1.05);
+  R(2.5, 8.55, 5.5, 12.2, '#e4dfd2'); { const r = RNG(615); for (let i = 0; i < 170; i++) { const u = 2.55 + r() * 2.9, y = 8.65 + r() * 3.5; g.fillStyle = r() < 0.5 ? 'rgba(110,100,85,0.45)' : 'rgba(255,252,240,0.6)'; g.beginPath(); g.ellipse(X(u), Y(y), 1 + r() * 3, 1 + r() * 2.5, r() * 3, 0, 7); g.fill(); } }
+  shut(9.5, 9.35, 11.35, 0.95); shut(9.5, 5.6, 7.2, 0.9); grille(9.5, 2.3, 3.7, 0.9);
+  // tower gable: two bell arches, cornice, clock
+  for (const u of [-2.75, -1.2]) { arch(u, 13.15, 15.05, 1.1, WHITE); arch(u, 13.3, 14.9, 0.78, '#2b2018'); R(u - 0.24, 13.7, u + 0.24, 14.35, '#4a3a22'); }
+  R(-4, 15.25, 0.3, 15.55, WHITE);
+  g.fillStyle = WHITE; g.beginPath(); g.ellipse(X(-1.95), Y(16.65), 1.0 * sx, 1.0 * sy, 0, 0, 7); g.fill();
+  g.fillStyle = '#f7f5ee'; g.beginPath(); g.ellipse(X(-1.95), Y(16.65), 0.74 * sx, 0.74 * sy, 0, 0, 7); g.fill(); g.strokeStyle = '#2a2420'; g.lineWidth = 2; g.stroke();
+  for (let k = 0; k < 12; k++) { const a = k * PI / 6; g.fillStyle = '#2a2420'; g.fillRect(X(-1.95) + Math.cos(a) * 0.58 * sx - 1, Y(16.65) + Math.sin(a) * 0.58 * sy - 1, 2.5, 2.5); }
+  g.beginPath(); g.moveTo(X(-1.95), Y(17.15)); g.lineTo(X(-1.95), Y(16.65)); g.lineTo(X(-1.55), Y(16.5)); g.stroke();
+  streaks(g, w, h, 34, 616, 0.1, h * 0.22, '90,62,40');
+  noiseDots(g, w, h, 1400, 2, 617, ['rgba(110,70,40,0.10)', 'rgba(255,240,215,0.10)']);
+}
+// pale limestone of the cliff over the sanctuary: vertical runs of ochre and dark grey, pale fresh faces, fissures, dark scrub in the cracks
+function sanRockPaint(g, w, h) {
+  const r = RNG(621), wrap = (fn) => { for (const dx of [-w, 0, w]) for (const dy of [-h, 0, h]) { g.save(); g.translate(dx, dy); fn(); g.restore(); } };
+  g.fillStyle = '#c6c2b6'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 70; i++) {
+    const x = r() * w, y = r() * h, rx = 3 + r() * 13, ry = 22 + r() * 70, k = r(), c = k < 0.3 ? '178,140,92' : k < 0.58 ? '104,104,100' : '234,231,222', a = 0.14 + r() * 0.22;
+    wrap(() => { g.fillStyle = `rgba(${c},${a})`; g.beginPath(); g.ellipse(x, y, rx, ry, (r() - 0.5) * 0.12, 0, 7); g.fill(); });
+  }
+  noiseDots(g, w, h, 2200, 2.6, 622, ['rgba(70,68,60,0.20)', 'rgba(245,242,232,0.28)']);
+  for (let i = 0; i < 22; i++) { let x = r() * w, y = r() * h; const pts = [[x, y]]; for (let k = 0; k < 5; k++) { x += (r() - 0.5) * 12; y += 8 + r() * 14; pts.push([x, y]); } const lw = 0.8 + r() * 1.6; wrap(() => { g.strokeStyle = 'rgba(48,44,36,0.5)'; g.lineWidth = lw; g.beginPath(); pts.forEach((q, k) => k ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.stroke(); }); }
+  for (let i = 0; i < 26; i++) { const x = r() * w, y = r() * h; for (let k = 0; k < 7; k++) { const px = x + (r() - 0.5) * 14, py = y + (r() - 0.5) * 9, s = 1.5 + r() * 3; wrap(() => { g.fillStyle = `rgba(${r() < 0.5 ? '66,82,44' : '92,100,52'},0.7)`; g.beginPath(); g.arc(px, py, s, 0, 7); g.fill(); }); } }
+}
+// the rock wall, north to south: [u, v at the foot, v at the crest, crest height, foot height (null: on the ground)], heights over the forecourt
+const SAN_CLIFF = [
+  [-11.2, -17.5, -19.0, 14.5, 8], [-9.5, -14, -18.0, 20, 8], [-7.0, -11.5, -16.5, 22.5, 8], [-4.5, -9.5, -15, 26.5, 8], [-2.0, -9.0, -14.5, 23.5, 8], [0.5, -7.2, -13, 28, 8], [3.0, -6.4, -12, 30.5, 8], [5.5, -5.2, -11, 27, 8], [8.2, -4.8, -9.5, 32.5, 8],
+  [10.75, -4.6, -9, 31, 8], [10.95, -2.2, -7, 32.5, null], [11.15, -0.4, -6, 33, null], [12.6, -0.15, -5.2, 36, null], [14.4, -0.7, -7, 33.5, null], [16.6, -0.2, -5.4, 35.5, null], [18.8, -1.1, -6.6, 31, null], [21.0, -0.35, -6.8, 27, null], [23.2, -0.6, -5.8, 20, null], [24.6, -2.2, -4.6, 12, null],
+];
+function sanCliff(M, y0) {
+  const r = RNG(623), T = [0, 0.09, 0.2, 0.33, 0.47, 0.62, 0.76, 0.89, 1], q = new THREE.Vector3(), rows = T.map(() => []);
+  const back = [[], []], crest = [];
+  for (const [u, vb, vt, top, base] of SAN_CLIFF) {
+    const gl = (a, b) => groundY(...SAN_P(a, b)) - y0, yb = base === null ? Math.min(...[-2, -1, 0, 1, 2].flatMap(a => [gl(u + a, vb), gl(u + a, vb - 2)])) - 1.5 : base, ledge = r() * 0.5;
+    T.forEach((t, i) => {
+      const free = i > 0, uu = u + (free && u !== 10.95 && u !== 11.15 ? (r() - 0.5) * 1.1 : 0), yy = yb + (top - yb) * t + (free && i < T.length - 1 ? (r() - 0.5) * 1.4 : i ? (r() - 0.5) * 2.2 : 0);
+      let v = vb + (vt - vb) * Math.pow(t, 1.5) + (free ? (r() - 0.5) * 2.2 + ((i % 3 === (ledge < 0.25 ? 1 : 2)) ? 0.8 : 0) : 0);
+      if (base !== null) v = Math.min(v, vb + 0.3);   // over the roofs the rock never comes through the front below
+      else if (yy - gl(uu, v) < 4.5) v = Math.min(v, 0.1);   // and near the ground it stays behind the walls' line
+      rows[i].push(q.set(uu, yy, v).applyMatrix4(M).toArray());
+    });
+    const v1 = Math.max(-20.2, vt - 2.6), v2 = Math.max(-20.3, vt - 7);
+    back[0].push(q.set(u, top - 1.6, v1).applyMatrix4(M).toArray());
+    back[1].push(q.set(u, Math.min(top - 7, gl(u, v2) - 1), v2).applyMatrix4(M).toArray());
+    crest.push([u, top, vt]);
+  }
+  const arc = [0]; for (let j = 1; j < SAN_CLIFF.length; j++) arc.push(arc[j - 1] + Math.hypot(rows[0][j][0] - rows[0][j - 1][0], rows[0][j][2] - rows[0][j - 1][2]));
+  const all = [...rows, ...back];
+  gridMesh('sanRock', all, (i, j, p) => [arc[j] / 11 + i * 0.013, (p[1] - y0) / 13], { noao: true });
+  // the two ends are closed down to the foot
+  for (const j of [0, SAN_CLIFF.length - 1]) { const side = all.map(row => row[j]), core = side.map(p => [side[0][0] * 0.35 + back[1][j][0] * 0.65, p[1] - 0.5, side[0][2] * 0.35 + back[1][j][2] * 0.65]); gridMesh('sanRock', [side, core], (i, k, p) => [k / 6, (p[1] - y0) / 13], { noao: true, flip: j !== 0 }); }
+  // pines and bushes along the crest (two or three small crowns in a clump) and tufts of scrub on the face
+  for (let k = 1; k < crest.length - 1; k++) {
+    const [u, top, vt] = crest[k], n = 1 + (k % 3);
+    for (let a = 0; a < n; a++) { const q_ = 0.55 + r() * 0.75; sphere('flat', q_, { M, p: [u + (r() - 0.5) * 2.4, top - 0.7 + q_ * 0.35 - a * 0.5, vt - 1.0 + r() * 1.2], c: ['#4a5c32', '#3d4f29', '#5d6b3c'][(k + a) % 3], ky: 0.65 + r() * 0.3, ry: r() * 3, seg: 6, noao: true }); }
+  }
+  for (let k = 0; k < 18; k++) { const j = 1 + Math.floor(r() * (SAN_CLIFF.length - 2)), i = 4 + Math.floor(r() * 4), p = rows[i][j], q_ = 0.3 + r() * 0.45; sphere('flat', q_, { p: [p[0], p[1], p[2]], c: r() < 0.5 ? '#4f6234' : '#6a7444', ky: 0.6, seg: 6, noao: true }); }
+}
 function buildSantuario() {
   initShared();
-  const pts = pairsOf(FP.santuario.p), gr = groundRange(pts), ob = obb(pts);
-  const fr = facing(ob, 0.35, 1);
-  const gy = gr.hi + 0.2, M = frame(ob.cx, gy, ob.cz, fr.nx, fr.nz);
-  begin(gy);
-  const W = fr.w + 3, Dp = fr.d, H = 13.2;
-  defMat('sanFront', 512, 256, [W, H], (g, w, h) => paintFacade(g, w, h, W, H, { base: '#ecca8c', trim: '#f8f1de', glass: '#2c333b', seed: 611, plinth: { h: 0.9, c: '#a9a08a' },
-    bands: [{ y: 4.7, h: 0.3, c: '#f0e0b8' }, { y: 9.2, h: 0.3, c: '#f0e0b8' }, { y: 12.9, h: 0.3, c: '#f0e0b8' }],
-    rows: [{ y0: 1.5, y1: 3.8, n: 4, m: 2.4, w: 1.0, kind: 'rect', shut: 'open' }, { y0: 5.7, y1: 8.4, n: 4, m: 2.4, w: 1.1, kind: 'rect', ped: true, shut: 'open', balc: true }, { y0: 10.1, y1: 12.2, n: 4, m: 2.4, w: 1.0, kind: 'rect', shut: 'open' }], shut: '#3f7050' }));
-  defMat('sanSide', 256, 256, [6, 12], (g, w, h) => paintFacade(g, w, h, 6, 12, { base: '#e6c486', trim: '#f4ead2', glass: '#2c333b', seed: 612, rows: [{ y0: 1.5, y1: 3.8, xs: [3], w: 1.0, kind: 'rect' }, { y0: 6, y1: 8.4, xs: [3], w: 1.0, kind: 'rect', shut: 'open' }], shut: '#4d6a4a' }));
-  cliffMat(); skirtDown('cliff', M, W + 2, Dp + 2, -(gr.hi - gr.lo) - 3, { c: '#e8e4d8' });
-  bx('sanSide', M, -W / 2, W / 2, 0, H, -Dp / 2, Dp / 2 - 0.02, {});
-  panel('sanFront', W, H, { M: mul(M, tr(0, 0, Dp / 2 + 0.01)) });
-  bx('flat', M, -W / 2 - 0.4, W / 2 + 0.4, H, H + 0.5, -Dp / 2 - 0.4, Dp / 2 + 0.5, { c: '#ecdcb4' });
-  gable('tile', 'sanSide', mul(M, tr(0, H + 0.5, -2)), W - 0.5, Dp - 4, 0, 2.2, { ov: 0.6 });
-  // stone portal and the clock gable over the entrance
-  const MP = mul(M, tr(W * 0.18, 0, Dp / 2 + 0.01));
-  bx('tufa', MP, -1.6, 1.6, 0, 4.6, 0, 0.5, { c: '#d9cfb4' });
-  archBay('tufa', 3.4, 5.2, 1.9, 3.4, 0.6, { M: mul(MP, tr(0, 0, 0.2)), c: '#d9cfb4' });
-  bx('dark', MP, -0.9, 0.9, 0, 2.7, 0.25, 0.4, { noao: true });
-  const MC = mul(M, tr(W * 0.18, H + 0.5, Dp / 2 - 2.6));
-  bx('sanSide', MC, -2.2, 2.2, 0, 5.6, -2.0, 2.0, {}); bx('flat', MC, -2.5, 2.5, 5.6, 6.0, -2.3, 2.3, { c: '#ecdcb4' });
-  pyramid('tile', 5.0, 4.6, 2.6, { M: mul(MC, tr(0, 6.0, 0)) });
-  box('marble', 1.5, 1.5, 0.15, { M: mul(MC, tr(0, 3.2, 2.05)), c: '#f2eee4' }); box('dark', 0.9, 1.2, 0.1, { M: mul(MC, tr(-1.2, 1.1, 2.05)), noao: true });
-  // stairs up from the road
-  for (let i = 0; i < 18; i++) bx('stone', M, -W * 0.4 + 6, W * 0.4 + 6, -i * 0.38 - 0.02, -i * 0.38 + 0.18 + 0.0, Dp / 2 + 0.6 + i * 0.46, Dp / 2 + 0.6 + i * 0.46 + 0.5, { c: '#b5ad9b' });
-  bx('stone', M, -W * 0.4 + 6, W * 0.4 + 6, -8, -0.05, Dp / 2 + 0.4, Dp / 2 + 8.8, { c: '#a9a190' });
-  // the grey-ochre limestone cliff the sanctuary is cut into: rock towers behind and to the right, rooted deep in the hillside (they used to be boxes whose underside hung over the road)
-  cliffMat();
-  const r_ = RNG(613), root = gy - lowestGround(M, -W / 2 - 14, W / 2 + 20, -Dp / 2 - 16, Dp / 2 + 14) + 8;
-  // each massif is a stack of four tiers, a broad foot and narrower tiers stepping back above it, so the cliff shows layered ledges (flat tops with scrub) and not a column
-  const massif = (x, zz, rx, rz, H, seed) => {
-    const tiers = 4;
-    for (let k = 0; k < tiers; k++) {
-      const top = H * (k + 1) / tiers * (0.94 + r_() * 0.1), f = 1.6 - 0.2 * k, sx = (r_() - 0.5) * 3.5;
-      crag('cliff', mul(M, tr(x + sx, top, zz - k * 2.8)), rx * f, rz * f, top + root, { spread: 1.12, seed: seed + k * 5, jit: 0.3, rough: 0.13, seg: 18, rows: 6, cap: true, noao: true });
-    }
-  };
-  for (let i = 0; i < 6; i++) massif(-W / 2 - 4 + i * (W + 14) / 5, -Dp / 2 - 6 - r_() * 3, 8 + r_() * 2.5, 6 + r_() * 2, 46 + r_() * 22, 20 + i * 3);
-  for (let i = 0; i < 3; i++) massif(W / 2 + 6 + i * 6.5, -Dp / 2 + 1 - i * 4, 7, 7, 36 + i * 9, 50 + i * 4);
+  const y0 = groundY(...SAN_P(-2, 0.4)), M = frame(SAN_MID[0], y0, SAN_MID[1], SAN_N[0], SAN_N[1]);
+  begin(y0);
+  defMat('sanFront', 512, 384, [2 * SAN_U, SAN_HI - SAN_LO], sanFrontPaint);
+  defMat('sanSide', 128, 128, [6, 4.2], (g, w, h) => paintFacade(g, w, h, 6, 4.2, { base: '#dcb188', trim: '#ecdcc0', glass: '#2c333b', seed: 612, rows: [{ y0: 1.2, y1: 3.0, xs: [3], w: 1.1, kind: 'rect', shut: 'closed' }], shut: '#3f6a50' }));
+  defMat('sanRock', 256, 256, [11, 13], sanRockPaint);
+  const WH = '#e0dacb', MB = '#d9d5c8', ST = '#948b79', low = -6;
+  const face = (u0, u1, ya, yb, v) => panel('sanFront', u1 - u0, yb - ya, { M: mul(M, tr((u0 + u1) / 2, ya, v)), uvk: [(u1 - u0) / (2 * SAN_U), (yb - ya) / (SAN_HI - SAN_LO)], uvo: [(u0 + SAN_U) / (2 * SAN_U), (ya - SAN_LO) / (SAN_HI - SAN_LO)] });
+  const side = (u0, u1, y1, v0, v1) => bx('sanSide', M, u0, u1, low, y1, v0, v1, { uvo: [0, -y0 / 4.2] });
+  // bodies: convent wing flush with the footprint, church front set back 1.8 m behind its terrace, the rear block under the rock
+  side(-SAN_U, -4, 12.4, -12, -0.03); side(-4, 10.7, 12.8, -4.2, -1.83); side(-10.8, -4, 11.6, -19.6, -12); side(-4, 6.6, 11.6, -19.6, -4.2);
+  face(-SAN_U, -4, -1, 12.4, 0); face(-4, 10.75, -1, 12.8, -1.8);
+  bx('flat', M, -SAN_U - 0.1, -3.9, 12.15, 12.55, -12, 0.32, { c: '#e6cfb0', noao: true });
+  // church: pilasters, capitals and the two cornices
+  for (const [u0, u1] of [[-3.98, -3.5], [-0.35, 0.3], [7.75, 8.3]]) { bx('flat', M, u0, u1, 1.4, 12.4, -1.85, -1.6, { c: WH }); for (const y of [7.55, 11.8]) bx('flat', M, u0 - 0.14, u1 + 0.14, y, y + 0.45, -1.85, -1.5, { c: WH, noao: true }); }
+  bx('flat', M, -4.05, 10.75, 8.05, 8.5, -1.9, -1.35, { c: WH, noao: true }); bx('flat', M, -4.1, 10.8, 12.35, 12.8, -4.25, -1.25, { c: WH, noao: true });
+  // convent balcony and the church's stone balcony in the tower bay
+  bx('flat', M, -10.3, -4.7, 5.0, 5.16, -0.05, 0.6, { c: '#cfc6b2', noao: true }); rail(mul(M, tr(-7.5, 5.16, 0.57)), 5.6, 0.95);
+  bx('flat', M, -3.4, -0.5, 5.15, 5.4, -1.85, -1.0, { c: WH, noao: true }); balus(mul(M, tr(-1.95, 5.4, -1.06)), 2.9, 0.9);
+  // portal: columns, entablature, pediment, door recess
+  for (const u of [2.35, 5.65]) { cyl('flat', 0.2, 0.25, 3.45, 8, { M: mul(M, tr(u, 1.65, -1.45)), c: MB }); bx('flat', M, u - 0.36, u + 0.36, 1.4, 1.65, -1.82, -1.1, { c: WH }); bx('flat', M, u - 0.34, u + 0.34, 5.05, 5.25, -1.82, -1.1, { c: WH, noao: true }); }
+  bx('flat', M, 1.85, 6.15, 5.22, 5.55, -1.85, -1.12, { c: WH, noao: true });
+  const ped = (u, y, wd, hh, v, d) => { const s = new THREE.Shape(); s.moveTo(-wd / 2, 0); s.lineTo(wd / 2, 0); s.lineTo(0, hh); s.lineTo(-wd / 2, 0); extrude('flat', s, d, { M: mul(M, tr(u, y, v)), c: MB, noao: true }); };
+  ped(4, 6.95, 2.6, 0.75, -1.82, 0.28);
+  extrude('flat', archShape(1.85, 3.4), 0.04, { M: mul(M, tr(4, 1.4, -1.79)), c: '#33241a', noao: true });
+  // the niche with the saint over the portal, and the cross on the cornice
+  for (const u of [2.8, 5.2]) bx('flat', M, u - 0.22, u + 0.22, 8.5, 11.35, -1.84, -1.5, { c: MB });
+  bx('flat', M, 2.45, 5.55, 11.35, 11.65, -1.84, -1.4, { c: MB, noao: true }); ped(4, 11.65, 2.5, 0.55, -1.82, 0.3);
+  extrude('flat', archShape(1.5, 2.45), 0.03, { M: mul(M, tr(4, 8.75, -1.79)), c: '#5d564c', noao: true });
+  bx('flat', M, 3.3, 4.7, 8.5, 8.9, -1.84, -1.35, { c: MB }); statue('flat', mul(M, tr(4, 8.9, -1.55)), 1.8, { c: MB, noao: true });
+  bx('flat', M, 3.93, 4.07, 12.8, 14.1, -1.65, -1.5, { c: MB, noao: true }); bx('flat', M, 3.55, 4.45, 13.55, 13.7, -1.65, -1.5, { c: MB, noao: true });
+  // clock and bell gable: the shaft with its curved top, cornices, little bell frame
+  { const s = new THREE.Shape(); s.moveTo(-4, 12.8); s.lineTo(0.3, 12.8); s.lineTo(0.3, 17.0); s.quadraticCurveTo(-0.55, 17.05, -0.65, 17.9); s.quadraticCurveTo(-1.0, 18.7, -1.85, 18.75); s.quadraticCurveTo(-2.7, 18.7, -3.05, 17.9); s.quadraticCurveTo(-3.15, 17.05, -4, 17.0); s.lineTo(-4, 12.8);
+    extrude('sanFront', s, 1.2, { M: mul(M, tr(0, 0, -3.0)), uv: 'keep', uvk: [1 / (2 * SAN_U), 1 / (SAN_HI - SAN_LO)], uvo: [0.5, -SAN_LO / (SAN_HI - SAN_LO)], noao: true }); }
+  bx('flat', M, -4.15, 0.45, 15.25, 15.55, -3.1, -1.65, { c: WH, noao: true }); bx('flat', M, -4.1, 0.4, 16.95, 17.2, -3.05, -1.7, { c: WH, noao: true });
+  for (const u of [-2.3, -1.4]) bx('flat', M, u - 0.04, u + 0.04, 18.4, 19.6, -2.45, -2.37, { c: '#2c2a28', noao: true });
+  bx('flat', M, -2.34, -1.36, 19.55, 19.63, -2.45, -2.37, { c: '#2c2a28', noao: true }); cone('flat', 0.25, 0.5, 6, { M: mul(M, tr(-1.85, 18.9, -2.41)), c: '#4a3f2a', noao: true });
+  // the terrace before the portal: five steps up between two runs of balustrade, with potted palms
+  bx('flat', M, 0.2, 10.75, low, 1.4, -1.84, -1.15, { c: ST });
+  bx('flat', M, 0.2, 2.4, low, 1.4, -1.15, -0.08, { c: ST }); bx('flat', M, 5.6, 10.75, low, 1.4, -1.15, -0.08, { c: ST });
+  for (let i = 0; i < 5; i++) bx('flat', M, 2.4, 5.6, low, 1.4 - (i + 1) * 0.26, -1.15 + i * 0.21, -1.15 + (i + 1) * 0.21, { c: i % 2 ? '#7d7565' : '#a69c89', noao: true });
+  for (const [a, b] of [[0.25, 2.35], [5.65, 8.4]]) balus(mul(M, tr((a + b) / 2, 1.4, -0.14)), b - a, 0.95);
+  for (const u of [-3.2, -0.6, 1.2, 6.8]) { const t = u > 0 ? 1.4 : 0, v = u > 0 ? -0.75 : -0.9; cyl('flat', 0.28, 0.2, 0.45, 7, { M: mul(M, tr(u, t, v)), c: '#a85e40' }); for (let a = 0; a < 3; a++) panel('palm', 1.5, 1.0, { M: mul(M, tr(u, t + 0.35, v)), ry: a * PI / 3, noao: true }); }
+  // the rock
+  sanCliff(M, y0);
   return end('Santuario di Santa Rosalia');
 }
-export const SANTUARIO = { name: 'Santuario di Santa Rosalia', x: -825, z: -5780, radius: 60, skipIds: [FP.santuario.id], build: buildSantuario };
+export const SANTUARIO = { name: 'Santuario di Santa Rosalia', x: -825, z: -5780, radius: 60, skipIds: [FP.santuario.id, 'x25070'], build: buildSantuario,
+  walls: [[-837.0, -5774.1, -837.9, -5770.6]] };   // the foot of the rock between the two mapped footprints (their own walls stay)

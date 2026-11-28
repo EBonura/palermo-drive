@@ -1,7 +1,7 @@
-// City landmarks, batch P (four churches). Registered through BATCH_P in src/landmarks-city.js.
-// Only Sant'Agata la Pedata could be drawn from photos of its own exterior. San Michele Arcangelo (w97225599), Maria Santissima Mediatrice (w48849513) and San Raffaele Arcangelo (w81132103)
-// have no usable exterior photo on Wikimedia Commons or Wikipedia (the Commons category "San Michele Arcangelo (Palermo)" shows the former church beside Casa Professa, a different building in the old centre,
-// while the footprint w97225599 stands at the Commons coordinates 38.134 N, 13.342 E far to the north-west). Nothing is drawn for those three, the lead leaves them generic.
+// City landmarks, batch P (Sant'Agata la Pedata). Registered through BATCH_P in src/landmarks-city.js.
+// San Michele Arcangelo (w97225599), Maria Santissima Mediatrice (w48849513) and San Raffaele Arcangelo (w81132103) are not in this batch: no usable exterior photo of them is on Wikimedia Commons or Wikipedia
+// (the Commons category "San Michele Arcangelo (Palermo)" shows the former church beside Casa Professa, a different building in the old centre, while the footprint w97225599 stands at the Commons
+// coordinates 38.134 N, 13.342 E far to the north-west). All three were built later, from Mapillary frames, in src/lmc-batchR.js.
 //
 // Sant'Agata la Pedata (Via Giuseppe Patricolo / Via Maggiore Francesco Perni, beside Porta Sant'Agata). Replaces the OSM footprint w81202236.
 // Frame F: origin on the ground in the middle of the 17.6 m front, +z out of the front (west, onto the narrow street), local x along the front (towards the south, to the right when facing the front).
@@ -85,7 +85,7 @@ function buildSantAgata() {
   const body = clipFront(pts, -0.1);
   prism('bpSABody', body, Math.min(gr.lo, y0) - 1.5, y0 + LOW, { uvo: [0, -y0 / LOW] });
   prism('flat', body, y0 + LOW, y0 + LOW + 0.12, { c: '#a39a8c' });
-  bx('bpSANave', F, NX0, NX1, LOW, NE, -0.1, NZ1, { uvo: [0, -(y0 + LOW) / (NE - LOW)] });
+  bx('bpSANave', F, NX0, NX1, LOW, NE, -1.05, NZ1, { uvo: [0, -(y0 + LOW) / (NE - LOW)] });   // (from the back of the front slab: inside it the two share their side faces and flicker)
   gable('tile', 'bpSANave', at(NXC, 0, (-0.1 + NZ1) / 2), NX1 - NX0, -0.1 - NZ1, NE, RISE, { ov: 0.3, c: '#b8744f', wc: '#e5ccaa' });
   const hw = FW / 2, s = new THREE.Shape();
   s.moveTo(-hw, 0); s.lineTo(hw, 0); s.lineTo(hw, LOW); s.lineTo(NX1, LOW); s.lineTo(NX1, NE); s.lineTo(NXC, FH); s.lineTo(NX0, NE); s.lineTo(NX0, LOW); s.lineTo(-hw, LOW); s.lineTo(-hw, 0);

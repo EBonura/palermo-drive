@@ -1,11 +1,13 @@
 // City landmarks, batch J: Santa Maria di Porto Salvo, Chiesa dei Santi Pietro e Paolo, Santa Croce (the Anglican church of the Holy Cross). Registered in src/landmarks-city.js.
-// Santa Caterina da Siena (w279882644) is NOT built here: no photo of its exterior could be found, so it stays generic.
+// Santa Caterina da Siena (w279882644) is not in this batch: no photo of its exterior had been found then. It was built later in src/lmc-batchR.js.
 // Each church: frame F with the origin on the ground in the middle of the real front, +z out of the front, local x along the front (right as seen from the street).
 // The front is chosen from the photos and the roads around the footprint. The body is the footprint clipped at the front, the painted front is one extruded shape, nave and roofs follow the photos.
 // Reference photos (Wikimedia Commons, looked at, nothing copied):
 //  Santa Maria di Porto Salvo: "Palermo - Chiesa di Santa Maria di Porto Salvo - 2024-07-16 20-08-06 001.JPG" (corner view of the front and its return), "Santa Maria di Portosalvo.jpg" (the whole front, three bays; the third file is an interior).
 //   Read: a two-storey tuff front in warm ochre-brown ashlar, four pilasters (three bays), lower row of three barred windows with cornices, a central door with a triangular pediment and a framed window above it,
 //   a heavy projecting ledge, an upper row of three balcony windows with iron rails and short pilasters, a deep dentilled cornice. About 16 m wide, 0.9 of that high, flat roof behind the cornice.
+//   The stone is dark and weathered; the same two orders run round the east return, which carries a small bell-cote; the portal has two columns, and a lantern hangs each side of it.
+//   Not verified: how far back the orders run (carried along both mapped east edges), the bell-cote's exact place and size, the roof, the west side and the back.
 //  Chiesa dei Santi Pietro e Paolo: "Chiesa dei Santi Pietro e Paolo (Palermo) - facciata1.JPG", "Palermo-AP-p1070709.jpg", "Palermo-AP-p1070716.jpg" (details of the portal and the plaque).
 //   Read: neo-Gothic front in honey tuff ashlar, three pointed portals (a big central one with a striped archivolt and a leafy hood, two small ones), two roundels over the side portals, a diamond plaque with papal keys,
 //   a higher central nave with a bifora window under a striped hood, aisle fronts that slope down to the sides, a frieze of small pointed arches under the slopes and the gable, an inscription band, thin buttress strips.
@@ -13,7 +15,7 @@
 //   Read: cream-yellow ashlar, a steep gable with a big rose window, three round-arched windows under it, a small arched door at the right, a square tower on the left with a slim stone spire, red tile roofs, round-arched side windows.
 // Not known and not drawn: the roofs behind the fronts beyond what the photos show, the back walls, the side doors of Santa Croce and the porch at its front-left corner.
 import * as THREE from 'three';
-import { PI, bx, extrude, prism, begin, end, defMat, mul, tr, frame, groundY, initShared, noiseDots, streaks, paintAshlar, pairsOf, groundRange, gable, cone, RNG } from './lmc-kit.js';
+import { PI, bx, box, cyl, panel, extrude, prism, begin, end, defMat, mul, tr, frame, groundY, initShared, noiseDots, streaks, paintAshlar, pairsOf, groundRange, gable, cone, RNG } from './lmc-kit.js';
 
 const inPoly = (p, x, z) => { let c = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) if ((p[i][1] > z) !== (p[j][1] > z) && x < (p[j][0] - p[i][0]) * (z - p[i][1]) / (p[j][1] - p[i][1]) + p[i][0]) c = !c; return c; };
 function setup(flat, mid, n) {
@@ -60,45 +62,101 @@ function paintBay(g, w, h, hm, base, joint, seed, wins, trim) {
 // ======================================================================================================
 // Santa Maria di Porto Salvo: front = the 16.2 m run (w49772133 outline edge from (577.8,-289.1) to (562,-292.7)), looking onto the street; the return to the east turns away
 const PS = { id: 'w49772133', p: [562, -292.7, 564.9, -302.8, 566.1, -307.2, 567.7, -313.6, 579.5, -310.6, 583.5, -309.6, 591.2, -296.1, 577.8, -289.1], mid: [569.9, -290.9], n: [-0.222, 0.975] };
-const PS_W = 16.2, PS_H = 14.8, PS_E = 14.0;
+const PS_W = 16.2, PS_H = 15.2, PS_E = 14.75;
+const PS_PIL = [-7.35, -2.75, 2.75, 7.5], PS_BAY = [-5.05, 0, 5.1];
+// weathered tuff: ashlar of uneven blocks, patches of dark crust and of paler repairs, soot hanging under every ledge
+function psStone(g, w, h, tw, th, seed) {
+  stone(g, w, h, tw, th, '#a98c64', '#6f593d', seed, 0.48, 0.95);
+  const r = RNG(seed + 7), sx = w / tw, sy = h / th;
+  for (let i = 0; i < Math.round(tw * th / 2.2); i++) { const k = r(); g.fillStyle = k < 0.4 ? 'rgba(70,50,30,0.30)' : k < 0.68 ? 'rgba(222,194,146,0.34)' : k < 0.85 ? 'rgba(150,96,50,0.28)' : 'rgba(96,92,84,0.34)'; g.fillRect(r() * w, Math.floor(r() * th / 0.48) * 0.48 * sy, (0.4 + r() * 0.8) * sx, 0.45 * sy); }
+  noiseDots(g, w, h, w * h / 60, 2.2, seed + 9, ['rgba(45,32,20,0.22)', 'rgba(235,212,170,0.16)']);
+}
 function paintPsFront(g, w, h) {
-  const { R, poly, X, Y, sx, sy } = tools(g, w, h, PS_W, PS_H), ST = '#bd9d6c', LT = '#cfb083', DK = '#9a7d54';
-  stone(g, w, h, PS_W, PS_H, '#b99a6a', '#8a7049', 9101);
-  R(-8.1, 0, 8.1, 0.9, '#8d7753');
-  for (const x of [-7.6, -2.9, 2.9, 7.6]) { R(x - 0.45, 0.9, x + 0.45, 8.9, LT); R(x + 0.3, 0.9, x + 0.45, 8.9, 'rgba(60,40,20,0.3)'); R(x - 0.62, 8.4, x + 0.62, 8.95, DK); R(x - 0.38, 10.8, x + 0.38, 13.7, LT); R(x - 0.5, 13.3, x + 0.5, 13.7, DK); }
-  for (const x of [-5.45, 0, 5.45]) {
-    R(x - 0.95, 5.0, x + 0.95, 8.1, LT); R(x - 0.62, 5.3, x + 0.62, 7.8, '#221a14');
-    for (const gy of [6.0, 6.7, 7.4]) R(x - 0.6, gy, x + 0.6, gy + 0.06, '#6b5a44'); R(x - 0.03, 5.3, x + 0.03, 7.8, '#6b5a44');
-    R(x - 1.2, 7.9, x + 1.2, 8.4, DK); R(x - 1.1, 5.0, x + 1.1, 5.2, DK);
-    R(x - 0.8, 10.8, x + 0.8, 13.1, LT); R(x - 0.55, 11.0, x + 0.55, 12.8, '#6e3a2a'); R(x - 0.03, 11.0, x + 0.03, 12.8, '#3a2018'); R(x - 0.9, 10.8, x + 0.9, 11.5, 'rgba(30,26,22,0.55)');
-    for (let k = -0.8; k <= 0.8; k += 0.2) R(x + k - 0.02, 10.8, x + k + 0.02, 11.5, '#1c1a18'); R(x - 0.9, 13.0, x + 0.9, 13.3, DK);
+  const { R, poly, Y, sy } = tools(g, w, h, PS_W, PS_H), DK = '#5c4a35', MD = '#8a7050', LT = '#b89a70';
+  psStone(g, w, h, PS_W, PS_H, 9101);
+  R(-8.1, 0, -7.85, PS_H, '#b9a684'); R(-8.1, 0, 8.1, 0.8, 'rgba(58,44,30,0.45)');
+  for (const x of PS_PIL) { R(x - 0.3, 0.8, x + 0.3, 8.8, MD); R(x - 0.12, 1.4, x + 0.12, 8.0, 'rgba(60,42,24,0.28)'); R(x + 0.3, 0.8, x + 0.55, 8.8, 'rgba(40,28,15,0.35)'); R(x - 0.25, 10.4, x + 0.25, 14.0, MD); R(x + 0.25, 10.4, x + 0.45, 14.0, 'rgba(40,28,15,0.35)'); }
+  for (const x of PS_BAY) {
+    // lower window: moulded frame, iron grille, hood
+    R(x - 1.15, 5.15, x + 1.15, 8.1, LT); R(x - 0.7, 5.45, x + 0.7, 7.85, '#17110d'); for (let a = x - 0.55; a < x + 0.7; a += 0.28) R(a, 5.45, a + 0.04, 7.85, '#4c3c2c'); for (let y = 5.75; y < 7.85; y += 0.34) R(x - 0.7, y, x + 0.7, y + 0.04, '#4c3c2c');
+    R(x - 1.35, 8.05, x + 1.35, 8.4, DK); R(x - 1.2, 4.8, x + 1.2, 5.15, DK);
+    // upper window: red-brown casements behind the balcony
+    R(x - 0.82, 10.6, x + 0.82, 12.75, LT); R(x - 0.6, 10.6, x + 0.6, 12.55, '#8a3c24'); R(x - 0.46, 10.75, x - 0.08, 12.4, '#41525a'); R(x + 0.08, 10.75, x + 0.46, 12.4, '#41525a'); R(x - 0.5, 11.55, x + 0.5, 11.62, '#8a3c24'); R(x - 0.95, 12.75, x + 0.95, 12.95, DK);
   }
-  R(-1.45, 0.9, 1.45, 3.7, LT); R(-1.1, 0.9, 1.1, 3.4, '#6a2a20'); R(-0.03, 0.9, 0.03, 3.4, '#3a1812');
-  for (const y of [1.6, 2.4]) { R(-1.0, y, -0.1, y + 0.6, 'rgba(0,0,0,0.14)'); R(0.1, y, 1.0, y + 0.6, 'rgba(0,0,0,0.14)'); }
-  poly([[-1.9, 3.7], [0, 5.0], [1.9, 3.7]], LT); poly([[-1.3, 3.8], [0, 4.6], [1.3, 3.8]], '#a98c62');
-  R(-8.1, 10.15, 8.1, 10.8, DK); R(-8.1, 10.15, 8.1, 10.25, 'rgba(255,240,205,0.3)');
-  R(-8.1, 13.7, 8.1, 14.8, DK); R(-8.1, 14.5, 8.1, 14.8, LT); for (let x = -8.0; x < 8.0; x += 0.5) R(x, 14.0, x + 0.28, 14.35, '#7e6540');
-  for (const y of [10.15, 13.7]) { const gs = g.createLinearGradient(0, Y(y), 0, Y(y - 1.5)); gs.addColorStop(0, 'rgba(40,28,15,0.32)'); gs.addColorStop(1, 'rgba(40,28,15,0)'); g.fillStyle = gs; g.fillRect(0, Y(y), w, 1.5 * sy); }
-  finish(g, w, h, PS_H, 9102);
+  R(-1.95, 0, 1.95, 4.45, MD); R(-1.2, 0, 1.2, 3.55, '#2a1a10'); R(-1.02, 0, 1.02, 3.38, '#7c2e1e'); R(-0.025, 0, 0.025, 3.38, '#34140c');
+  for (const y of [0.35, 1.35, 2.35]) for (const x of [-0.9, 0.12]) { R(x, y, x + 0.78, y + 0.8, 'rgba(30,8,0,0.28)'); R(x + 0.08, y + 0.08, x + 0.7, y + 0.72, 'rgba(255,170,120,0.08)'); }
+  R(-1.9, 3.55, 1.9, 4.35, LT); R(-1.5, 3.75, 1.5, 4.1, '#95784f');
+  poly([[-2.15, 4.4], [0, 5.65], [2.15, 4.4]], DK); poly([[-1.5, 4.55], [0, 5.35], [1.5, 4.55]], '#a2855c');
+  // entablatures and cornices, each with its shadow
+  R(-8.1, 8.75, 8.1, 9.1, DK); R(-8.1, 9.1, 8.1, 10.05, MD); for (let x = -8; x < 8; x += 0.62) R(x, 9.25, x + 0.22, 9.9, 'rgba(55,38,22,0.35)'); R(-8.1, 10.05, 8.1, 10.45, DK);
+  R(-8.1, 13.55, 8.1, 14.0, MD); R(-8.1, 14.0, 8.1, 14.75, DK); R(-8.1, 14.75, 8.1, PS_H, '#bca986');
+  for (const [y, d] of [[10.05, 1.6], [14.0, 1.2], [8.75, 0.9]]) { const gs = g.createLinearGradient(0, Y(y), 0, Y(y - d)); gs.addColorStop(0, 'rgba(30,20,10,0.5)'); gs.addColorStop(1, 'rgba(30,20,10,0)'); g.fillStyle = gs; g.fillRect(0, Y(y), w, d * sy); }
+  finish(g, w, h, PS_H, 9102, '40,28,16');
+}
+// one 5 m bay of the return walls, the same two orders: a barred window below, a casement above, the three ledges
+function paintPsSide(g, w, h) {
+  const { R, Y, sy } = tools(g, w, h, 5, PS_E);
+  psStone(g, w, h, 5, PS_E, 9111);
+  R(-2.5, 0, 2.5, 0.8, 'rgba(58,44,30,0.45)');
+  R(-0.95, 5.15, 0.95, 8.0, '#b3956c'); R(-0.55, 5.45, 0.55, 7.75, '#17110d'); for (let y = 5.75; y < 7.75; y += 0.34) R(-0.55, y, 0.55, y + 0.05, '#4c3c2c'); R(-1.15, 8.0, 1.15, 8.35, '#5c4a35');
+  R(-0.7, 11.0, 0.7, 12.85, '#b3956c'); R(-0.48, 11.2, 0.48, 12.65, '#2a2420');
+  for (const [a, b, c] of [[8.75, 9.1, '#5c4a35'], [10.05, 10.45, '#5c4a35'], [14.0, PS_E, '#5c4a35']]) R(-2.5, a, 2.5, b, c);
+  for (const [y, d] of [[10.05, 1.5], [14.0, 1.2], [8.75, 0.8]]) { const gs = g.createLinearGradient(0, Y(y), 0, Y(y - d)); gs.addColorStop(0, 'rgba(30,20,10,0.45)'); gs.addColorStop(1, 'rgba(30,20,10,0)'); g.fillStyle = gs; g.fillRect(0, Y(y), w, d * sy); }
+  streaks(g, w, h, 12, 9112, 0.18, 90, '40,28,16');
 }
 function buildPs() {
   initShared();
   const S = setup(PS.p, PS.mid, PS.n), { F, y0 } = S, gr = groundRange(S.pts), hw = PS_W / 2;
   defMat('bjPsFront', 384, 352, [PS_W, PS_H], paintPsFront);
-  defMat('bjPsWall', 128, 256, [4.5, PS_E], (g, w, h) => paintBay(g, w, h, PS_E, '#b3946a', '#86704a', 9111, [[5.1, 7.7], [11.0, 12.8]], '#c5a678'));
+  defMat('bjPsWall', 128, 256, [5, PS_E], paintPsSide);
   begin(y0);
   prism('bjPsWall', S.clip(-0.1), Math.min(gr.lo, y0) - 1.5, y0 + PS_E, { uvo: [0, -y0 / PS_E] });
-  prism('flat', S.clip(-0.1), y0 + PS_E, y0 + PS_E + 0.12, { c: '#8e857a' });
+  prism('flat', S.clip(-0.1), y0 + PS_E, y0 + PS_E + 0.12, { c: '#9a8670' });
   const sh = new THREE.Shape(); sh.moveTo(-hw, 0); sh.lineTo(hw, 0); sh.lineTo(hw, PS_H); sh.lineTo(-hw, PS_H); sh.lineTo(-hw, 0);
   extrude('bjPsFront', sh, 0.9, { M: mul(F, tr(0, 0, -0.95)), uv: 'keep', uvk: [1 / PS_W, 1 / PS_H], uvo: [0.5, 0], noao: true });
-  const C = { c: '#b89a6c', noao: true };
-  bx('flat', F, -hw - 0.15, hw + 0.15, 10.1, 10.25 + 0.1, -0.95, 0.5, C);
-  bx('flat', F, -hw - 0.2, hw + 0.2, 14.35, 14.8, -0.95, 0.7, { c: '#c0a273', noao: true });
-  for (const x of [-7.6, -2.9, 2.9, 7.6]) { bx('flat', F, x - 0.45, x + 0.45, 0.9, 8.4, -0.05, 0.28, C); bx('flat', F, x - 0.35, x + 0.35, 10.8, 13.3, -0.05, 0.2, C); }
-  for (const x of [-5.45, 0, 5.45]) { bx('flat', F, x - 1.2, x + 1.2, 7.9, 8.3, -0.05, 0.4, C); bx('flat', F, x - 1.0, x + 1.0, 4.95, 5.15, -0.05, 0.3, C); bx('flat', F, x - 0.95, x + 0.95, 10.4, 10.8, -0.05, 0.7, { c: '#a98c62', noao: true }); }
-  bx('flat', F, -1.9, 1.9, 3.6, 3.85, -0.05, 0.45, C); bx('flat', F, -1.4, 1.4, 3.85, 4.4, -0.05, 0.3, C);
+  // relief in the same stone: a plain colour a shade off the painted wall, lighter on top faces' edges, dark for the deep ledges
+  const ST = { c: '#97794f', noao: true }, LG = { c: '#ad8f64', noao: true }, DK = { c: '#69533a', noao: true };
+  const led = (M, x0, x1, y0_, y1, d, o) => bx('flat', M, x0, x1, y0_, y1, -0.1, d, o);
+  led(F, -hw, hw + 0.2, 8.75, 9.05, 0.3, ST); led(F, -hw, hw + 0.45, 10.05, 10.45, 0.62, DK); led(F, -hw, hw + 0.25, 14.0, 14.35, 0.38, ST); led(F, -hw, hw + 0.5, 14.35, 14.72, 0.7, DK);
+  for (let x = -7.8; x < 8.0; x += 0.65) bx('flat', F, x - 0.11, x + 0.11, 13.68, 14.0, -0.05, 0.3, DK);
+  for (const x of PS_PIL) {
+    bx('flat', F, x - 0.3, x + 0.3, 0.9, 8.15, -0.05, 0.2, ST); bx('flat', F, x - 0.48, x + 0.48, 0, 0.95, -0.05, 0.28, DK); bx('flat', F, x - 0.46, x + 0.46, 8.15, 8.75, -0.05, 0.36, LG);
+    bx('flat', F, x - 0.4, x + 0.4, 10.45, 11.15, -0.05, 0.3, ST); bx('flat', F, x - 0.23, x + 0.23, 11.15, 13.35, -0.05, 0.18, LG); bx('flat', F, x - 0.38, x + 0.38, 13.35, 13.68, -0.05, 0.28, ST);
+  }
+  for (const x of PS_BAY) {
+    for (const sg of [-1, 1]) bx('flat', F, x + sg * 0.92 - 0.17, x + sg * 0.92 + 0.17, 5.15, 8.05, -0.05, 0.16, LG);
+    led(F, x - 1.3, x + 1.3, 8.05, 8.35, 0.34, DK); led(F, x - 1.2, x + 1.2, 4.95, 5.2, 0.26, ST); led(F, x - 0.95, x + 0.95, 12.75, 12.98, 0.24, ST);
+    // iron balcony
+    led(F, x - 1.2, x + 1.2, 10.45, 10.58, 0.85, DK);
+    const IR = { c: '#1f1d1e', noao: true };
+    bx('flat', F, x - 1.18, x + 1.18, 11.45, 11.52, 0.76, 0.82, IR);
+    for (let k = 0; k <= 8; k++) bx('flat', F, x - 1.18 + k * 0.29, x - 1.13 + k * 0.29, 10.58, 11.45, 0.76, 0.81, IR);
+    for (const sg of [-1, 1]) bx('flat', F, x + sg * 1.18 - 0.03, x + sg * 1.18 + 0.03, 11.45, 11.52, -0.05, 0.82, IR);
+  }
+  // the portal: two columns on pedestals, their entablature and the pediment (kept within 0.3 m of the wall below head height)
+  for (const x of [-1.6, 1.6]) { bx('flat', F, x - 0.28, x + 0.28, 0, 0.75, -0.05, 0.28, ST); cyl('flat', 0.13, 0.17, 2.7, 8, { M: mul(F, tr(x, 0.75, 0.1)), c: '#b39770' }); bx('flat', F, x - 0.26, x + 0.26, 3.45, 3.62, -0.05, 0.34, LG); }
+  bx('flat', F, -1.28, -1.12, 0, 3.55, -0.05, 0.14, LG); bx('flat', F, 1.12, 1.28, 0, 3.55, -0.05, 0.14, LG);
+  led(F, -2.0, 2.0, 3.62, 3.82, 0.4, ST); led(F, -1.85, 1.85, 3.82, 4.2, 0.24, LG); led(F, -2.15, 2.15, 4.2, 4.42, 0.46, DK);
+  for (const sg of [-1, 1]) { const len = Math.hypot(2.15, 1.2); box('flat', len, 0.2, 0.46, { M: mul(F, tr(sg * 1.075, 4.92, 0.2)), rz: -sg * Math.atan2(1.2, 2.15), p: [0, -0.1, 0], c: '#69533a', noao: true }); }
+  // two iron lanterns on brackets
+  for (const x of [-3.85, 3.95]) { bx('flat', F, x - 0.03, x + 0.03, 5.9, 5.96, -0.05, 0.55, { c: '#1d1c1c', noao: true }); bx('flat', F, x - 0.17, x + 0.17, 5.96, 6.42, 0.38, 0.72, { c: '#3a4440', noao: true }); cone('flat', 0.27, 0.22, 6, { M: mul(F, tr(x, 6.42, 0.55)), c: '#1d1c1c', noao: true }); }
+  // the return walls on the east: painted bays, pilasters between them and the three ledges carried round; the bell-cote above them
+  const E = [[PS.p[14], PS.p[15], PS.p[12], PS.p[13]], [PS.p[12], PS.p[13], PS.p[10], PS.p[11]]];
+  for (const [ax, az, cx, cz] of E) {
+    const dx = cx - ax, dz = cz - az, len = Math.hypot(dx, dz), n = Math.round(len / 5);
+    const W = frame((ax + cx) / 2, y0, (az + cz) / 2, -dz / len, dx / len);
+    panel('bjPsWall', len, PS_E, { M: mul(W, tr(0, 0, 0.02)), uvk: [n, 1] });
+    panel('bjPsWall', len, 1.6, { M: mul(W, tr(0, -1.6, 0.02)), uvk: [n, 0.05] });
+    led(W, -len / 2, len / 2 + 0.1, 8.75, 9.05, 0.25, ST); led(W, -len / 2, len / 2 + 0.3, 10.05, 10.45, 0.45, DK); led(W, -len / 2, len / 2 + 0.3, 14.35, 14.72, 0.48, DK); led(W, -len / 2, len / 2, 14.72, PS_H, 0.06, { c: '#bca986', noao: true });
+    for (let k = 0; k <= n; k++) { const x = Math.max(-len / 2 + 0.3, Math.min(len / 2 - 0.3, -len / 2 + k * len / n)); bx('flat', W, x - 0.3, x + 0.3, -0.5, 8.75, -0.05, 0.2, ST); bx('flat', W, x - 0.23, x + 0.23, 10.45, 14.35, -0.05, 0.16, ST); }
+    for (let k = 0; k < n; k++) { const x = -len / 2 + (k + 0.5) * len / n; led(W, x - 1.15, x + 1.15, 8.0, 8.3, 0.28, DK); }
+  }
+  { const [ax, az, cx, cz] = E[1], dx = cx - ax, dz = cz - az, len = Math.hypot(dx, dz), W = mul(frame(ax + dx * 0.16, y0 + PS_E, az + dz * 0.16, -dz / len, dx / len), tr(0, 0, -0.7));
+    for (const x of [-1.05, 0, 1.05]) bx('flat', W, x - 0.2, x + 0.2, 0, 2.5, -0.35, 0.35, LG);
+    bx('flat', W, -1.25, 1.25, 0, 0.8, -0.36, 0.36, ST); bx('flat', W, -1.4, 1.4, 2.5, 2.8, -0.45, 0.45, DK); cone('flat', 0.9, 0.7, 4, { M: mul(W, tr(0, 2.8, 0)), c: '#8a7050', noao: true });
+    for (const x of [-0.52, 0.52]) cone('flat', 0.22, 0.5, 6, { M: mul(W, tr(x, 1.55, 0)), c: '#3a3226', noao: true }); }
   const o = end('Santa Maria di Porto Salvo');
-  o.userData.solids = [[PS.p, null, y0 + PS_H]];
+  o.userData.solids = [[PS.p, null, y0 + PS_E]];
   return o;
 }
 

@@ -1,9 +1,9 @@
-// City landmarks: the churches of Palermo that had no model of their own, 60 or so, each rebuilt from one parametric builder. Registered in src/landmarks-city.js.
+// City landmarks: the churches of Palermo that have no model of their own yet, each built by one parametric builder (their rows are in src/lmc-churches-data.js; a church that gets its own model has its row removed). Registered in src/landmarks-city.js.
 // The data (src/lmc-churches-data.js, made by a script from the baked tiles) gives each church its footprint and its front: the edge that looks onto a road or open ground, with its outward
 // normal and length. Everything else follows from the footprint and the baked height: the body up to the eaves in the footprint (clipped so it never stands in front of the front), a nave
 // under a gable roof where a straight nave fits inside the footprint, a painted front drawn in one of three styles (baroque in two orders, Gothic with a pointed portal and a rose window,
 // plain parish with a pediment and an oculus), twin bell towers on wide baroque fronts, a lead dome with a lantern on the large baroque ones, a bell gable on the Gothic ones.
-// The three front textures are painted once in a template size and stretched to each front, the wall texture is shared, so all sixty churches use seven materials between them.
+// The three front textures are painted once in a template size and stretched to each front, the wall texture is shared, so all these churches use seven materials between them.
 // The style of a church is picked from its hash, not from knowledge of the real front: these are churches in the manner of Palermo, not portraits. The hand-built churches (San Domenico, San Francesco,
 // Sant'Agostino, Salvatore, Sant'Ignazio) are in their own files. Nothing here claims a detail of a real front: statues are stone silhouettes, no inscriptions.
 import * as THREE from 'three';

@@ -7,8 +7,8 @@
 //   a round window, an inscription band, a triangular pediment with a shield and a cross, a small bell gable with two arches behind on the left.
 // Santa Maria dei Miracoli: Chiesa di Santa Maria dei Miracoli (Palermo) - facciata 1.JPG, facciata 2.JPG, Santa Maria dei Miracoli - Palermo - Italy 2015.JPG. Read: a pale limestone ashlar front in two storeys, two fluted columns and two corner pilasters, a portal with a blank lunette,
 //   a framed window each side, a cartouche, a heavy cornice, a plain upper wall with one round window, a straight top cornice with a scrolled gable in the middle, stepped merlons at the back right.
-// Sant'Andrea (degli Amalfitani, called Armatori in the map): Sant'Andrea - Facciata.jpg. Read: a white plastered front with golden stone pilasters, three bays and three doors (an arched middle portal, a small pedimented door each side), framed windows above, a narrow upper order
-//   with a round window under a triangular pediment, a scroll each side, a bell gable behind on the left.
+// Sant'Andrea (degli Amalfitani, called Armatori in the map): Sant'Andrea - Facciata.jpg. Read: a white plastered front with golden stone pilasters, three bays and three doors (an arched middle portal between two columns under a broken pediment, a small pedimented door each side), framed windows above, a narrow upper order
+//   with a round window under a triangular pediment with a small cross on its apex, a scroll and a stone ball each side, an open bell gable behind on the left; a rusticated arched doorway in the plain wall on the left (put on the set back wing of the outline, its exact place not verified).
 import * as THREE from 'three';
 import { PI, bx, cyl, lathe, sphere, extrude, panel, prism, begin, end, defMat, mul, tr, rotY, frame, groundY, initShared, noiseDots, streaks, pairsOf, groundRange, gable, archShape, balus, paintAshlar, RNG } from './lmc-kit.js';
 
@@ -313,6 +313,7 @@ function paintAndFront(g, w, h) {
   R(-5.05, 0, 5.05, 0.5, '#b08c5a');
   for (const x of [-4.6, 4.6]) { strip(x, 0.5, ALO, 0.9, ST, 0.7); R(x - 0.55, ALO - 0.4, x + 0.55, ALO, STH); }
   for (const x of [-1.75, 1.75]) { strip(x, 0.5, 12.0, 0.8, ST, 0.7); R(x - 0.5, ALO - 0.4, x + 0.5, ALO, STH); }
+  { const r = RNG(8403); for (let i = 0; i < 150; i++) { const x = [-4.6, -1.75, 1.75, 4.6][i % 4] - 0.42 + r() * 0.65, y = 0.6 + r() * (i % 4 === 1 || i % 4 === 2 ? 11 : 7.4); R(x, y, x + 0.15 + r() * 0.25, y + 0.12 + r() * 0.4, r() < 0.6 ? 'rgba(92,66,34,0.28)' : 'rgba(246,220,165,0.3)'); } }
   // lower cornice
   R(-5.05, ALO - 0.5, 5.05, ALO + 0.5, ST); R(-5.05, ALO + 0.3, 5.05, ALO + 0.5, STH); R(-5.05, ALO - 0.5, 5.05, ALO - 0.38, 'rgba(50,30,15,0.4)');
   // middle portal: arched opening, frame, columns, half pediments, a framed window above
@@ -356,12 +357,44 @@ function buildAnd() {
   s.lineTo(-2.3, 11.7); s.quadraticCurveTo(-3.4, 9.5, -5.05, 9.3); s.lineTo(-5.05, 0);
   slab(F, 'bkAnFront', s, -5.05, AFW, AFH, 1.0);
   const bg = new THREE.Shape(); bg.moveTo(-4.5, 9.3); bg.lineTo(-2.4, 9.3); bg.lineTo(-2.4, 12.8); bg.lineTo(-3.45, 13.4); bg.lineTo(-4.5, 12.8); bg.lineTo(-4.5, 9.3);
-  extrude('bkAnFront', bg, 0.7, { M: at(0, 0, -2.2), uv: 'keep', uvk: [1 / AFW, 1 / AFH], uvo: [5.05 / AFW, 0], noao: true });
-  bx('flat', F, -5.3, 5.3, ALO - 0.5, ALO + 0.5, -1.2, 0.4, { c: '#d3b67e', noao: true });
+  for (const x of [-3.85, -3.05]) { const h = new THREE.Path(); h.moveTo(x - 0.28, 10.35); h.lineTo(x - 0.28, 11.75); h.absarc(x, 11.75, 0.28, PI, 0, true); h.lineTo(x + 0.28, 10.35); h.lineTo(x - 0.28, 10.35); bg.holes.push(h); }
+  extrude('bkAnFront', bg, 0.7, { M: at(0, 0, -2.2), uv: 'keep', uvk: [1 / AFW, 1 / AFH], uvo: [5.05 / AFW, 0], cs: 6, noao: true });
+  // the carved stone standing out of the front (its face is at z = -0.05)
+  const ST = '#bd9b66', STH = '#d3b47f', STD = '#a4854f';
+  const sl = (x0, x1, y0, y1, d, c = STH) => bx('flat', F, x0, x1, y0, y1, -0.15, -0.05 + d, { c, noao: true });
+  const poly = (pts, d, c, z = -0.08) => { const sh = new THREE.Shape(); pts.forEach((q, i) => i ? sh.lineTo(q[0], q[1]) : sh.moveTo(q[0], q[1])); extrude('flat', sh, d, { M: at(0, 0, z), c, noao: true }); };
+  const ring = (x, y, r0, r1, a0, a1, d, c) => { const sh = new THREE.Shape(); sh.absarc(0, 0, r1, a0, a1, false); sh.absarc(0, 0, r0, a1, a0, true); extrude('flat', sh, d, { M: at(x, y, -0.08), c, cs: 10, noao: true }); };
   for (const sg of [-1, 1]) {
-    sphere('flat', 0.33, { M: at(sg * 4.7, 9.6, -0.4), c: '#d9bd86', seg: 6 });
+    for (const [c, w, top] of [[4.6, 0.82, ALO - 0.5], [1.75, 0.72, ALO - 0.5]]) { sl(sg * c - w / 2, sg * c + w / 2, 0.5, top - 0.45, 0.16, ST); sl(sg * c - w / 2 - 0.13, sg * c + w / 2 + 0.13, top - 0.45, top, 0.27); sl(sg * c - w / 2 - 0.1, sg * c + w / 2 + 0.1, 0.5, 1.05, 0.25, STD); }
+    sl(sg * 1.75 - 0.34, sg * 1.75 + 0.34, ALO + 0.5, 11.65, 0.14, ST); sl(sg * 1.75 - 0.45, sg * 1.75 + 0.45, 11.65, 12.0, 0.25);
+    // the middle portal: a column each side and the two halves of its broken pediment
+    sl(sg * 1.45 - 0.28, sg * 1.45 + 0.28, 0.5, 1.1, 0.5, STD); cyl('flat', 0.15, 0.18, 2.2, 8, { M: at(sg * 1.45, 1.1, 0.2), c: STH, noao: true }); sl(sg * 1.45 - 0.26, sg * 1.45 + 0.26, 3.3, 3.55, 0.48);
+    poly([[sg * 1.95, 3.76], [sg * 1.95, 3.94], [sg * 0.5, 4.72], [sg * 0.45, 4.35], [sg * 1.3, 3.9], [sg * 1.3, 3.76]], 0.45, STH);
+    // the side doors and the windows over them
+    const x = sg * 3.15;
+    for (const k of [-0.62, 0.62]) sl(x + k - 0.13, x + k + 0.13, 0.5, 2.5, 0.14, ST);
+    sl(x - 1.0, x + 1.0, 2.5, 2.68, 0.3); poly([[x - 1.0, 2.66], [x, 3.22], [x + 1.0, 2.66], [x + 0.72, 2.66], [x, 3.05], [x - 0.72, 2.66]], 0.3, STH);
+    for (const k of [-0.53, 0.53]) sl(x + k - 0.11, x + k + 0.11, 4.2, 6.7, 0.13, ST);
+    sl(x - 0.84, x + 0.84, 6.68, 6.98, 0.28); sl(x - 0.8, x + 0.8, 4.04, 4.28, 0.24);
+    // the volutes of the upper order and the stone balls on their pedestals
+    ring(sg * 3.85, 9.95, 0.3, 0.62, 0, 2 * PI - 0.001, 0.22, STH); sphere('flat', 0.17, { M: at(sg * 3.85, 9.95, 0.08), c: ST, seg: 6, noao: true });
+    poly(sg < 0 ? [[-3.55, 10.45], [-2.9, 10.55], [-2.3, 11.75], [-2.6, 11.7], [-3.05, 10.85]] : [[3.55, 10.45], [3.05, 10.85], [2.6, 11.7], [2.3, 11.75], [2.9, 10.55]], 0.2, ST);
+    sl(sg * 4.7 - 0.3, sg * 4.7 + 0.3, ALO + 0.5, 9.42, 0.2, ST); sphere('flat', 0.3, { M: at(sg * 4.7, 9.72, -0.12), c: '#d3b47f', seg: 8, noao: true });
+    // the raking cornices of the pediment
+    poly([[sg * 2.78, 12.46], [sg * 2.78, 12.72], [0, 15.1], [0, 14.72]], 0.4, STH);
   }
-  bx('flat', F, -0.1, 0.1, 17.6, 18.6, -0.35, -0.2, { c: '#8d8472', noao: true }); bx('flat', F, -0.4, 0.4, 18.1, 18.3, -0.35, -0.2, { c: '#8d8472', noao: true });
+  bx('flat', F, -5.3, 5.3, ALO - 0.18, ALO + 0.16, -1.2, 0.32, { c: STH, noao: true }); sl(-5.2, 5.2, ALO + 0.16, ALO + 0.5, 0.42); sl(-5.14, 5.14, ALO - 0.5, ALO - 0.18, 0.14, ST);
+  sl(-2.75, 2.75, 12.0, 12.2, 0.2, ST); sl(-2.85, 2.85, 12.2, 12.48, 0.4);
+  ring(0, 3.2 - 0.8, 0.82, 1.1, 0, PI, 0.2, STH); for (const sg of [-1, 1]) sl(sg * 0.96 - 0.14, sg * 0.96 + 0.14, 0.5, 2.4, 0.2, ST);
+  for (const k of [-0.86, 0.86]) sl(k - 0.13, k + 0.13, 5.0, 7.0, 0.13, ST); sl(-1.2, 1.2, 7.0, 7.28, 0.26); sl(-1.15, 1.15, 4.8, 5.05, 0.22);
+  ring(0, 10.5, 0.6, 0.88, 0, 2 * PI - 0.001, 0.22, STH);
+  // the small stone cross on the apex of the pediment
+  sl(-0.17, 0.17, 14.9, 15.28, 0.02, ST); bx('flat', F, -0.07, 0.07, 15.25, 16.05, -0.2, -0.08, { c: '#c9b184', noao: true }); bx('flat', F, -0.28, 0.28, 15.6, 15.74, -0.2, -0.08, { c: '#c9b184', noao: true });
+  // the plain wing on the left, set back: a coping and the rusticated arched doorway seen beside the church
+  bx('flat', F, -10.6, -4.95, 7.4, 7.65, -12.9, -5.68, { c: '#cdbd9c', noao: true });
+  { const x = -7.4, z = -5.8; arch3('flat', at(x, 0, z - 0.02), 1.8, 3.1, 0.07, { c: '#2b2018' });
+    for (let i = 0; i <= 8; i++) { const a = PI * i / 8; bx('flat', mul(at(x + Math.cos(a) * 1.17, 2.2 + Math.sin(a) * 1.17, z), new THREE.Matrix4().makeRotationZ(a)), -0.26, 0.26, -0.2, 0.2, -0.05, i % 2 ? 0.1 : 0.16, { c: i % 2 ? STD : ST, noao: true }); }
+    for (const sg of [-1, 1]) for (let k = 0; k < 4; k++) bx('flat', F, x + sg * 1.17 - 0.27, x + sg * 1.17 + 0.27, k * 0.52, k * 0.52 + 0.48, z - 0.05, z + (k % 2 ? 0.1 : 0.16), { c: k % 2 ? STD : ST, noao: true }); }
   const o = end(AND.name); o.userData.solids = [[AND.p, null, y0 + ALO]];
   return o;
 }

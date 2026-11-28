@@ -12,7 +12,7 @@ import { SUCA_TAGS } from './suca-tags.js';   // (the SUCA wall tags are collect
 import { speciesFor, SP } from './species.js';
 import { treeGeo } from './treegeo.js';
 import { treeDetail } from './tree-detail.js';
-import { treeCleared } from './tree-clear.js';
+import { treeCleared, TREE_CLEAR } from './tree-clear.js';
 import { buildParkedModels, makeMaterial } from '../assets/traffic/models.js';   // the traffic cars' own models: parked cars are the same cars
 import { BUS_STOPS } from '../assets/traffic/bus-routes.js';
 import { placed as rampZones } from './ramp-spots.js';   // the road works around the ramps: no parked cars inside (src/ramps.js)
@@ -20,6 +20,17 @@ import { signalSites, legPoint, signalMaterial, createSignalLamps, STOP_BACK, cl
 import { sfx } from './sfx.js';   // what a thing sounds like when the lapa knocks it over
 import { isFastRoad, isLane, builtAt, fastAt } from './road-class.js';   // the fast roads (the Viale's carriageways, and its lanes where nothing is built beside them): no parked cars, bins or crossings
 const BRONZES = [[-568.7, -974.6], [-560.7, -960.7], [-552.2, -943.8]];
+// monuments modelled in src/lmc-monuments.js (Vittorio Emanuele II, the Caduti, Garibaldi, the Immacolata, the two Capaci stelae) and OSM nodes that are not obelisks: the mural at the Cala,
+// beside the north-east bound stele at Capaci a plaque and a mural, the two artworks in the south pond of the Giardino Inglese (its bronze children are in src/lmc-g.js), the two statues in the
+// niches of the Palazzo Alliata's portal (src/lmc-batchF.js) and the Szymanowski plaque beside the front of the Teatro Massimo. No generic obelisk within
+// 4 m of any of these nodes (it still takes its random number and its room, so nothing else in the tile moves)
+const MODELLED = [[469.6, 583.9], [-1680.7, -3303.0], [-902.7, -1738.0], [142.5, -332.1], [-10157.7, -7434.5], [-10211.7, -7425.2], [767.3, -429.4], [-10151.7, -7434.1], [-10170.2, -7422.2], [-831.7, -1798.5], [-834.6, -1808.2], [-776.5, -1602.2], [-105.6, 84.6], [-6.1, -6604.0], [-107.0, 109.2], [-109.7, 104.1], [-305.4, -540.7]];
+// mapped street lamps that a landmark model draws as what they are, so no grey pole stands there: the two cast iron candelabra before each front of the Quattro Canti (src/landmarks.js) and the four
+// lantern posts round the Ruggero Settimo monument (src/lmc-piazza.js). The tile treats them as lamps in every other way (random numbers, room, the rows that keep their distance).
+const DRAWN_LAMPS = [[24.1, -5.6], [18.3, -7.5], [7.7, -2.0], [5.2, 3.8], [17.0, 15.0], [10.7, 13.8], [28.7, 5.2], [27.6, 9.4], [-467.3, -1014.2], [-461.8, -1017.0], [-461.8, -1003.4], [-456.3, -1006.1]];
+// The circles that landmark modules add to TREE_CLEAR (every one after the four written in src/tree-clear.js) take things away without moving the rest of the tile: a tree or a bollard in one is still
+// decided as anywhere else, takes its random numbers and its room, and is only not put. Leaving early instead shifts the tile's random stream, and trees, scooters and cars come out elsewhere.
+const OWN_CLEARS = 4;
 const hyp2 = (a, b) => Math.sqrt(a * a + b * b); // [perf pass] Math.hypot boxes a heap number per call; this runs thousands of times per frame
 
 const TAU = Math.PI * 2;
@@ -1602,8 +1613,10 @@ function* generate(S, BUD) {
     return [max, 0, 0];
   };
   const treePts = [];   // where the trees stand (the street trees of 13 keep their distance)
+  const hushed = (x, z) => { for (let i = OWN_CLEARS; i < TREE_CLEAR.length; i++) { const c = TREE_CLEAR[i]; if (hyp2(x - c[0], z - c[1]) < c[2]) return true; } return false; };
   const placeTree = (x, z, kind, canopy = 0.95, tc = null) => {
-    if (!inBounds(x, z) || road(x, z) || inB(x, z) || treeCleared(x, z)) return false;
+    const hush = hushed(x, z);
+    if (!inBounds(x, z) || road(x, z) || inB(x, z) || (!hush && treeCleared(x, z))) return false;
     const r = { ficus: 3.2, tree: 2.2, jacaranda: 2.2, holm: 2.8, orange: 1.4, pine: 2, plane: 2.4, plane_bare: 2.4, aleppo: 2, shrub: 0.8, hedge: 0.9 }[kind] ?? 0.5;
     if (TREE_VARIANT.has(kind) && hash3(x * 0.73, z * 0.41, 3.7) < 0.5) kind += '_b';   // (by position, not from the random stream of the tile)
     if (occHit(x, z, Math.min(r, 1.6) * 0.6)) return false;
@@ -1622,7 +1635,9 @@ function* generate(S, BUD) {
       }
     }
     const tint = C('#ffffff').multiplyScalar(R(0.85, 1.12)); if (tc) tint.multiply(tc);
-    put(kind, x, gy(x, z), z, R(0, TAU), s, tint); occAdd(x, z, Math.min(r, 1.6) * 0.6); treePts.push([x, z]);
+    const rot = R(0, TAU);
+    if (!hush) put(kind, x, gy(x, z), z, rot, s, tint);
+    occAdd(x, z, Math.min(r, 1.6) * 0.6); treePts.push([x, z]);
     return true;
   };
   // Traffic signals: one head on its pole (or mast arm) per road that arrives at a mapped signal, at the right kerb by the stop line (src/streets.js), facing the
@@ -1658,9 +1673,9 @@ function* generate(S, BUD) {
     if (k === 'bollard') { if (!inB(it.x, it.z)) { put('bollard', it.x, gy(it.x, it.z), it.z); occAdd(it.x, it.z, 0.2); } continue; }
     if (k === 'bin_big') { if (!inB(it.x, it.z)) { const y = gy(it.x, it.z), a = R(0, TAU); put('bin_big', it.x, y, it.z, a); put('bags', it.x + Math.cos(a) * 0.9, y, it.z - Math.sin(a) * 0.9, R(0, TAU)); occAdd(it.x, it.z, 1); } continue; }
     if (k === 'lamp') {
-      const w = nearWall(it.x, it.z, 3);
-      if (w && (it.mount === 'wall' || w.d < 1.5)) { const y = groundY(w.px, w.pz) + (raisedMask(w.px + w.nx, w.pz + w.nz) ? CURB : 0); put('lamp_wall', w.px, y, w.pz, Math.atan2(w.nx, w.nz)); lampsReal.push(it); }
-      else { const sp = snapOff(it.x, it.z); if (sp && !occHit(sp[0], sp[1], 0.3)) { put('lamp_pole', sp[0], gy(sp[0], sp[1]), sp[1], R(0, TAU)); occAdd(sp[0], sp[1], 0.4); lampsReal.push(it); } }
+      const w = nearWall(it.x, it.z, 3), drawn = DRAWN_LAMPS.some(q => hyp2(it.x - q[0], it.z - q[1]) < 0.5);
+      if (w && (it.mount === 'wall' || w.d < 1.5)) { const y = groundY(w.px, w.pz) + (raisedMask(w.px + w.nx, w.pz + w.nz) ? CURB : 0); if (!drawn) put('lamp_wall', w.px, y, w.pz, Math.atan2(w.nx, w.nz)); lampsReal.push(it); }
+      else { const sp = snapOff(it.x, it.z); if (sp && !occHit(sp[0], sp[1], 0.3)) { const rot = R(0, TAU); if (!drawn) put('lamp_pole', sp[0], gy(sp[0], sp[1]), sp[1], rot); occAdd(sp[0], sp[1], 0.4); lampsReal.push(it); } }
       continue;
     }
     if (k === 'bench') {
@@ -1688,7 +1703,9 @@ function* generate(S, BUD) {
       if (BRONZES.some(q => Math.hypot(it.x - q[0], it.z - q[1]) < 4)) continue;   // Nautica, I Senzatetto and Lavoro in Piazza Castelnuovo are modelled (src/lmc-piazza.js)
       const dp = it.art === 'statue' ? Math.hypot(it.x - 71.5, it.z - 25.8) : 99;   // Fontana Pretoria (src/landmarks.js): the statues of its precinct are figures; the one in the middle of the basin is in the model, behind a fence
       if (dp < 10) continue;
-      put(dp < 24 ? 'monument_s' : 'monument', it.x, gy(it.x, it.z), it.z, R(0, TAU), it.mem === 'bust' ? 0.7 : 1); occAdd(it.x, it.z, 1); continue;
+      const rot = R(0, TAU);
+      if (!MODELLED.some(q => hyp2(it.x - q[0], it.z - q[1]) < 4)) put(dp < 24 ? 'monument_s' : 'monument', it.x, gy(it.x, it.z), it.z, rot, it.mem === 'bust' ? 0.7 : 1);
+      occAdd(it.x, it.z, 1); continue;
     }
     if (k === 'water') { // a drinking tap (OSM drinking_water and the Comune's fontanelle list): on the pavement
       const sp = snapOff(it.x, it.z); if (!sp || occHit(sp[0], sp[1], 0.4)) continue;
@@ -2047,10 +2064,12 @@ function* generate(S, BUD) {
           if (!inBounds(x, z)) continue;
           // road must be on one side only, within a metre
           const a1 = asphalt(x - uz * 0.9, z + ux * 0.9), a2 = asphalt(x + uz * 0.9, z - ux * 0.9);
-          if (a1 === a2 || inB(x, z) || treeCleared(x, z)) continue;   // (the access road of the stadium crosses a pavement here: no bollards across it)
+          const hush = hushed(x, z);
+          if (a1 === a2 || inB(x, z) || (!hush && treeCleared(x, z))) continue;   // (the access road of the stadium crosses a pavement here: no bollards across it)
           const sx = x + (a1 ? -uz : uz) * 0.1, sz = z + (a1 ? ux : -ux) * 0.1;
           if (road(sx, sz) || occHit(sx, sz, 0.3) || nearWall(sx, sz, 0.4)) continue;
-          put('bollard', sx, groundY(sx, sz) + (raisedMask(sx, sz) ? CURB : 0.01), sz); occAdd(sx, sz, 0.3); n++;
+          if (!hush) put('bollard', sx, groundY(sx, sz) + (raisedMask(sx, sz) ? CURB : 0.01), sz);
+          occAdd(sx, sz, 0.3); n++;
         }
       }
     }
@@ -2932,7 +2951,7 @@ function* generate(S, BUD) {
             if (tspot(cx, cz, sg + 11) > cl[1] * f * scale) continue;
             const nx = -tz * sg, nz = tx * sg, e = march(cx, cz, nx, nz, 12, road); if (e < 1 || e > 11) continue;
             const x = cx + nx * (e + (fast ? 3.5 : 1.7)), z = cz + nz * (e + (fast ? 3.5 : 1.7));
-            if (!inBounds(x, z) || road(x, z) || inB(x, z) || nearWall(x, z, 1.7) || treeCleared(x, z) || nearJunction(x, z, 8) || near2(zebras, x, z, 4) || near2(treePts, x, z, 6) || lampNear(x, z, 2.5) || nearFence(x, z, 1.3) || nearBridge(x, z)) continue;
+            if (!inBounds(x, z) || road(x, z) || inB(x, z) || nearWall(x, z, 1.7) || (!hushed(x, z) && treeCleared(x, z)) || nearJunction(x, z, 8) || near2(zebras, x, z, 4) || near2(treePts, x, z, 6) || lampNear(x, z, 2.5) || nearFence(x, z, 1.3) || nearBridge(x, z)) continue;
             const y = groundY(x, z); if (y < 1.0 || Math.abs(y - groundY(cx, cz)) > 1.5 || fall(x, z) > 0.3) continue;
             const sp = spOf(pickBy(mix, tspot(x, z, 5)), x, z);
             if (placeTree(x, z, sp.m, 1.05 + 0.25 * tspot(x, z, 9), sp.t)) tn++;

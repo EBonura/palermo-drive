@@ -9,7 +9,9 @@
 //   between fluted pilasters (a pair at each end), a heavy cornice with a frieze of shell brackets. The nave behind is lower, a plain stone wall.
 //  Sant'Eulalia dei Catalani: Cresia di Sant'Eulalia du Catalani.jpg (and its detail file); SEdeiC PA 03 11 2014 01.jpg; Instituto Cervantes en Palermo.jpg. Front on the arm of the cross that meets the pedestrian way off Via Argenteria.
 //   Read: three storeys of tan ashlar. Ground: a shop arch each side and a pedimentless portal with an entablature in the middle. Middle: two glazed arches and a blind arch with the coat of arms between them. Top: four wreath roundels with busts.
-//   Two free shafts rise through all three storeys, an edge pilaster each end, a flat roof line with a cornice. The church behind was bombed in 1943 (only the front stands): the body is a plain block on the footprint.
+//   Two free columns stand one over another through all three storeys, a pilaster below and columns above at each end, entablatures between the storeys, a flat roof line with a cornice; the arches are deeply moulded, the arms in the blind arch
+//   stand among crosses over a heap of rocks. Further photos looked at: SEdeiC PA 03 11 2014 02.jpg (the vaulted crossing inside). The body is the cross shaped outline, plain walls (not seen from outside) with terracotta roofs on the arms,
+//   their pitch assumed, their colour that of the mapped roof.
 //  San Sebastiano: Chiesa di San Sebastiano (Palermo).JPG; Palermo-AP-p1070602.jpg; Palermo-AP-p1070603.jpg. Front on the east end onto Via della Cala.
 //   Read: pink plaster with stone pilasters. Lower: four pilasters (honey ashlar at the corners), a tall door under a broken curved pediment with a crown, a lattice panel over it, a framed lattice window with a triangular pediment each side,
 //   a blind niche door below each. Heavy dark entablature. Upper: an attic band with panels, a narrow nave front (two fluted pilasters, a round window in a shaped frame), a triangular pediment with two balls and a cross, a scroll each side.
@@ -226,6 +228,7 @@ function buildNova(c) {
 // Sant'Eulalia dei Catalani
 // ====================================================================================================
 const EU = { FW: 10.8, FH: 13.6, BH: 12.2 };
+const EU_TONDI = [-3.75, -1.05, 1.05, 3.75];
 function euFront(g, w, h) {
   const { FW, FH } = EU, t = tools(g, w, h, FW, FH), { R, arch, tri, ell, X, Y, sx, sy, pil } = t;
   paintAshlar(g, w, h, FW, FH, 0.5, 1.0, '#cbb28a', '#8f7a5a', 7301, 1.2, 0.08);
@@ -242,8 +245,8 @@ function euFront(g, w, h) {
   for (const s of [-1, 1]) for (const dx of [0.5, 1.1]) R(s * dx - 0.07, 6.5, s * dx + 0.07, 8.0, '#cbbfa5');
   ell(0, 7.6, 0.5, 0.55, '#b9ad94'); tri(-0.8, 0.8, 8.0, 0.5, '#b9ad94'); R(-0.4, 6.4, 0.4, 7.0, '#b0a58c');
   R(-FW / 2, 9.4, FW / 2, 9.95, '#c4aa80'); R(-FW / 2, 9.4, FW / 2, 9.52, 'rgba(50,30,15,0.4)');
-  // top storey: four wreath roundels with busts
-  for (const x of [-3.85, -0.95, 0.95, 3.85]) { ell(x, 11.3, 0.78, 0.78, '#a89270'); ell(x, 11.3, 0.52, 0.52, '#6f634e'); ell(x, 11.15, 0.2, 0.26, '#d8d0bc'); R(x - 0.3, 10.75, x + 0.3, 11.0, '#cdc4ae'); }
+  // top storey: the shadowed hollows of the four wreath roundels (the wreaths and busts are modelled)
+  for (const x of EU_TONDI) { ell(x + 0.1, 11.1, 0.88, 0.88, 'rgba(50,36,20,0.4)'); ell(x, 11.2, 0.55, 0.55, '#5f523d'); }
   // shafts and edge pilasters (painted shading under the solid ones), the top frieze
   for (const s of [-1, 1]) { pil(s * 5.15, 0.6, 12.3, 0.6, '#c4aa7e'); }
   R(-FW / 2, 12.3, FW / 2, FH, '#c0a77c'); R(-FW / 2, 12.3, FW / 2, 12.42, 'rgba(50,30,15,0.4)'); for (let x = -FW / 2 + 0.2; x < FW / 2; x += 0.4) R(x, 12.6, x + 0.16, 13.1, 'rgba(70,50,30,0.35)');
@@ -259,15 +262,42 @@ function buildEulalia(c) {
   prism('flat', body, y0 + BH, y0 + BH + 0.12, { c: '#a39a8c' });
   const sh = new THREE.Shape(); sh.moveTo(-hw, 0); sh.lineTo(hw, 0); sh.lineTo(hw, FH); sh.lineTo(-hw, FH); sh.lineTo(-hw, 0);
   extrude('euFront', sh, 1.2, { M: at(0, 0, -1.25), uv: 'keep', uvk: [1 / FW, 1 / FH], uvo: [0.5, 0], cs: 8, noao: true });
-  bx('flat', F, -hw - 0.3, hw + 0.3, 12.9, FH + 0.1, -1.25, 0.5, { c: '#c4ab80', noao: true });
-  bx('flat', F, -hw - 0.15, hw + 0.15, 9.5, 9.85, -1.25, 0.3, { c: '#cbb288', noao: true });
-  bx('flat', F, -3.6, 3.6, 4.9, 5.3, -1.25, 0.5, { c: '#cbb288', noao: true });
-  for (const sg of [-1, 1]) {
-    cyl('flat', 0.25, 0.28, 11.8, 10, { M: at(sg * 2.2, 0.6, 0.25), c: '#cdb487' });
-    for (const [y, hh] of [[4.5, 0.5], [9.2, 0.45], [12.0, 0.4]]) bx('flat', F, sg * 2.2 - 0.4, sg * 2.2 + 0.4, y, y + hh, -0.1, 0.55, { c: '#d6bf93', noao: true });
-    bx('flat', F, sg * 5.15 - 0.3, sg * 5.15 + 0.3, 0.6, 12.3, -0.05, 0.22, { c: '#c4aa7e', noao: true });
-    bx('flat', F, sg * 3.85 - 1.6, sg * 3.85 + 1.6, 0.3, 0.6, -0.05, 0.4, { c: '#b59d78', noao: true });
+  // the cross shaped body behind: a terracotta roof on each arm and a plain cornice round the top
+  const roof = (x0, x1, z0, z1, along) => { const w = along ? z1 - z0 : x1 - x0, d = along ? x1 - x0 : z1 - z0; gable('flat', 'euWall', mul(at((x0 + x1) / 2, 0, (z0 + z1) / 2), rotY(along ? PI / 2 : 0)), w, d, BH + 0.1, 1.35, { ov: 0.2, c: '#b4765a', wc: '#c8b08a' }); };
+  roof(-5.45, 5.45, -29.8, -1.5, false); roof(-13.35, 13.2, -20.9, -9.45, true);
+  for (let i = 0; i < s.pts.length; i++) {
+    const a = s.pts[i], b = s.pts[(i + 1) % s.pts.length], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz), out = (q) => (q[0] - c.O[0]) * c.N[0] + (q[1] - c.O[1]) * c.N[1]; if (l < 2 || (out(a) > -1 && out(b) > -1)) continue;   // (not along the front)
+    bx('flat', frame((a[0] + b[0]) / 2, 0, (a[1] + b[1]) / 2, -dz / l, dx / l), -l / 2, l / 2, y0 + BH - 0.25, y0 + BH + 0.22, -0.22, 0.22, { c: '#c0a67c', noao: true });
   }
+  // the front's stonework: the entablatures over each storey and the top cornice
+  const LT = '#d3bc90', MID = '#c2a97e', DK = '#a38b65', c0 = { noao: true };
+  const sl = (x0, x1, y0_, y1, d, col = LT) => bx('flat', F, x0, x1, y0_, y1, -0.15, d - 0.05, { c: col, ...c0 });
+  bx('flat', F, -hw - 0.28, hw + 0.28, 13.2, FH + 0.1, -1.25, 0.45, { c: MID, ...c0 }); sl(-hw - 0.1, hw + 0.1, 12.95, 13.2, 0.3); sl(-hw, hw, 12.2, 12.45, 0.2, MID);
+  sl(-hw - 0.1, hw + 0.1, 9.72, 9.95, 0.36); sl(-hw, hw, 9.4, 9.72, 0.14, MID); sl(-hw - 0.08, hw + 0.08, 5.52, 5.75, 0.26); sl(-hw, hw, 5.3, 5.52, 0.12, MID);
+  const column = (x, y, h, r, d) => { sl(x - r - 0.17, x + r + 0.17, y, y + 0.34, d + r + 0.1, DK); cyl('flat', r * 0.86, r, h - 0.78, 6, { M: at(x, y + 0.34, d), c: LT, noao: true }); cyl('flat', r + 0.17, r * 0.86, 0.3, 6, { M: at(x, y + h - 0.44, d), c: MID, noao: true }); sl(x - r - 0.2, x + r + 0.2, y + h - 0.16, y + h, d + r + 0.14); };
+  const arc = (x, y, r0, r1, d, col) => { const sh2 = new THREE.Shape(); sh2.moveTo(r1, 0); sh2.absarc(0, 0, r1, 0, PI, false); sh2.lineTo(-r0, 0); sh2.absarc(0, 0, r0, PI, 0, true); sh2.lineTo(r1, 0); extrude('flat', sh2, d, { M: at(x, y, -0.08), c: col, cs: 5, ...c0 }); };
+  for (const sg of [-1, 1]) {
+    column(sg * 2.2, 0.55, 4.75, 0.24, 0.24); column(sg * 2.2, 5.75, 3.65, 0.23, 0.22); column(sg * 2.2, 9.95, 2.3, 0.18, 0.18);   // one shaft a storey
+    column(sg * 5.12, 5.75, 3.65, 0.19, 0.16); column(sg * 5.12, 9.95, 2.3, 0.16, 0.14); sl(sg * 5.15 - 0.28, sg * 5.15 + 0.28, 0.6, 5.3, 0.2, MID);
+    // the moulded arches of the side bays, ground and first floor, on their jambs
+    for (const [ys, base, r] of [[3.15, 0.6, 1.5], [7.45, 5.75, 1.48]]) { arc(sg * 3.7, ys, r, r + 0.17, 0.2, LT); arc(sg * 3.7, ys, r + 0.17, r + 0.27, 0.13, DK); for (const k of [-1, 1]) { const x = sg * 3.7 + k * (r + 0.07); sl(x - 0.12, x + 0.12, base, ys, 0.14, MID); sl(x - 0.18, x + 0.18, ys - 0.12, ys + 0.06, 0.22); } }
+    // the portal: jambs and the console under its entablature
+    sl(sg * 1.5 - 0.2, sg * 1.5 + 0.2, 0.6, 4.45, 0.2, MID); sl(sg * 1.75 - 0.14, sg * 1.75 + 0.14, 4.45, 4.9, 0.34, DK);
+  }
+  sl(-1.7, 1.7, 4.4, 4.62, 0.22); sl(-2.75, 2.75, 4.88, 5.1, 0.4, MID); sl(-2.95, 2.95, 5.1, 5.34, 0.56);
+  // the blind arch with the arms and the trophies of crosses over their heap of rocks
+  arc(0, 7.3, 1.72, 1.92, 0.26, LT); arc(0, 7.3, 1.92, 2.05, 0.15, DK); for (const k of [-1.82, 1.82]) { sl(k - 0.14, k + 0.14, 5.75, 7.3, 0.18, MID); }
+  const relief = '#cfc3a6';
+  for (const [x, y, r] of [[-1.05, 6.05, 0.26], [-0.55, 6.15, 0.32], [0, 6.2, 0.34], [0.55, 6.12, 0.3], [1.05, 6.05, 0.25]]) sphere('flat', r, { M: at(x, y, -0.03), seg: 4, ky: 0.7, kz: 0.6, c: '#aa9878', noao: true });
+  { const sh2 = new THREE.Shape(); sh2.moveTo(0, -0.55); sh2.quadraticCurveTo(0.55, -0.2, 0.45, 0.5); sh2.lineTo(-0.45, 0.5); sh2.quadraticCurveTo(-0.55, -0.2, 0, -0.55); extrude('flat', sh2, 0.18, { M: at(0, 7.2, -0.08), c: relief, cs: 6, ...c0 }); }
+  sphere('flat', 0.22, { M: at(0, 8.0, 0.02), seg: 6, kz: 0.7, c: relief, noao: true }); sl(-0.35, 0.35, 8.1, 8.28, 0.16, relief);
+  for (const sg of [-1, 1]) { for (const [x, h] of [[0.75, 1.55], [1.15, 1.15]]) { sl(sg * x - 0.06, sg * x + 0.06, 6.35, 6.35 + h, 0.13, relief); sl(sg * x - 0.22, sg * x + 0.22, 6.35 + h - 0.42, 6.35 + h - 0.3, 0.13, relief); } bx('flat', mul(at(sg * 0.58, 7.55, 0), new THREE.Matrix4().makeRotationZ(sg * 0.7)), -0.09, 0.09, -0.4, 0.4, -0.1, 0.06, { c: relief, ...c0 }); }
+  // the four wreaths, each round a bust
+  for (const [i, x] of EU_TONDI.entries()) {
+    arcRing(x, 11.2, 0.55, 0.82, 0.2, MID); for (let k = 0; k < 8; k++) { const a = k / 8 * 2 * PI + 0.3 * i; sphere('flat', 0.16, { M: at(x + Math.cos(a) * 0.69, 11.2 + Math.sin(a) * 0.69, 0.12), seg: 4, kz: 0.7, c: k % 2 ? LT : '#b39c74', noao: true }); }
+    sphere('flat', 0.2, { M: at(x + (i % 2 ? -0.04 : 0.04), 11.36, 0.12), seg: 6, ky: 1.15, c: '#e0d6bd', noao: true }); sphere('flat', 0.34, { M: at(x, 10.94, -0.04), seg: 6, ky: 0.7, kz: 0.6, c: '#d3c8ae', noao: true });
+  }
+  function arcRing(x, y, r0, r1, d, col) { const sh2 = new THREE.Shape(); sh2.absarc(0, 0, r1, 0, 2 * PI, false); const h = new THREE.Path(); h.absarc(0, 0, r0, 0, 2 * PI, true); sh2.holes.push(h); extrude('flat', sh2, d, { M: at(x, y, -0.08), c: col, cs: 4, ...c0 }); }
   bx('stone', F, -1.9, 1.9, -0.2, 0.2, -0.05, 0.7, { c: '#d6c9a8' });
   const o = end("Chiesa di Sant'Eulalia dei Catalani");
   o.userData.solids = [[c.p, null, y0 + BH]];

@@ -50,7 +50,7 @@ function ogivePts(x, ys, hw, rise, n = 14) {   // a pointed arch outline: left s
 }
 
 // One church: S = { name, id, p (footprint), O (middle of the front edge), N (outward normal), x, z, r, FW (front width), FH (front height),
-//   EAVE (wall height), roof { rw, z0, z1, rise, c, wc }, wall { key, w, h, paint }, front { key, w, h, paint, shape(THREE, hw) }, extra(ctx) }
+//   EAVE (wall height), roof { rw, z0, z1, rise, c, wc, y (where it sits, EAVE unless a nave wall stands higher) }, wall { key, w, h, paint }, front { key, w, h, paint, shape(THREE, hw) }, extra(ctx) }
 function church(S) {
   const pts = pairsOf(S.p), N = S.N, O = S.O;
   const toWorld = (x, z) => [O[0] + x * N[1] + z * N[0], O[1] - x * N[0] + z * N[1]];
@@ -76,10 +76,10 @@ function church(S) {
     const body = clipFront(S.clip || -0.1);
     prism(wl.key, body, Math.min(gr.lo, y0) - 1.5, y0 + EAVE, { uvo: [0, -y0 / EAVE] });
     prism('flat', body, y0 + EAVE, y0 + EAVE + 0.12, { c: '#a39a8c' });
-    const R = S.roof, rd = R.z0 - R.z1;
-    for (const sg of [-1, 1]) { const run = R.rw / 2 + 0.3 + 0 * sg, len = Math.hypot(R.rw / 2 + 0.3, R.rise), ang = Math.atan2(R.rise, R.rw / 2 + 0.3); box('tile', len, 0.25, rd + 0.6, { M: at(0, 0, (R.z0 + R.z1) / 2), p: [sg * run / 2, EAVE + R.rise / 2, 0], rz: -sg * ang, c: R.c, noao: true, uv: 'world' }); }
+    const R = S.roof, rd = R.z0 - R.z1, RY = R.y ?? EAVE;
+    for (const sg of [-1, 1]) { const run = R.rw / 2 + 0.3 + 0 * sg, len = Math.hypot(R.rw / 2 + 0.3, R.rise), ang = Math.atan2(R.rise, R.rw / 2 + 0.3); box('tile', len, 0.25, rd + 0.6, { M: at(0, 0, (R.z0 + R.z1) / 2), p: [sg * run / 2, RY + R.rise / 2, 0], rz: -sg * ang, c: R.c, noao: true, uv: 'world' }); }
     const sh = new THREE.Shape(); sh.moveTo(-R.rw / 2, 0); sh.lineTo(R.rw / 2, 0); sh.lineTo(0, R.rise); sh.lineTo(-R.rw / 2, 0);
-    for (const zz of [R.z1, R.z0 - 0.3]) extrude('plaster', sh, 0.3, { M: at(0, 0, 0), p: [0, EAVE, zz], c: R.wc, uv: 'world', noao: true });
+    for (const zz of [R.z1, R.z0 - 0.3]) extrude('plaster', sh, 0.3, { M: at(0, 0, 0), p: [0, RY, zz], c: R.wc, uv: 'world', noao: true });
     extrude(fr.key, fr.shape(THREE, hw), 1.3, { M: at(0, 0, -1.35), uv: 'keep', uvk: [1 / S.FW, 1 / S.FH], uvo: [0.5, 0], cs: 8, noao: true });
     S.extra({ F, at, y0, THREE });
     const o = end(S.name);
@@ -121,7 +121,7 @@ function ssNave(g, w, h) {   // 6 m of the nave clerestory: two small round-head
 }
 const SANTO_SPIRITO = church({
   name: 'Chiesa del Santo Spirito (dei Vespri)', id: SS.id, p: SS.p, O: SS.O, N: SS.N, x: 141, z: 1772, r: 46, FW: 17.6, FH: SS_T, EAVE: SS_A,
-  roof: { rw: 11, z0: -1.6, z1: -33, rise: SS_T - SS_N, c: '#cf8f6b', wc: '#bf9f6c' },
+  roof: { rw: 11, z0: -1.6, z1: -33, y: SS_N, rise: SS_T - SS_N, c: '#cf8f6b', wc: '#bf9f6c' },
   wall: { key: 'bissW', w: 384, h: 384, tw: 6, paint: ssWall },
   front: {
     key: 'bissF', w: 384, h: 210, paint: ssFront,

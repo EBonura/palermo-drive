@@ -2,7 +2,7 @@
 //  - Porta Nuova: the model is in src/landmarks.js (centro), this file only gives it its collision (the two piers, the passage stays open)
 //  - Porta dei Greci: the gate block of the Palazzo Forcella De Seta, a round arch through a three-storey block with pointed windows
 //  - Porta Sant'Agata: the rough Norman wall with a pointed arch beside the Piazza Porta Sant'Agata
-// Porta Felice (src/lmc-d.js) stays two open pylons, Porta Carini and Porta di Vicari are pylon pairs without a lintel: no arch to drive through.
+// Porta Felice (src/landmarks.js) stays two open pylons; Porta Carini (below) and Porta di Vicari (src/lmc-r2-g1.js) are pairs without a lintel: no arch to drive through.
 // Collision is 2D against wall segments (src/vehicle.js): a landmark can hand world.js `walls` ([x0,z0,x1,z1]) and `dropWalls` (building ids whose
 // footprint walls are not registered), so the passages are open for the car and the piers still block it.
 // Checked against Wikimedia Commons photos (Category:Porta dei Greci, Category:Porta Sant'Agata (Palermo), Category:Porta Nuova (Palermo)) and the OSM

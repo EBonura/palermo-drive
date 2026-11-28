@@ -6,7 +6,7 @@
 // white-grey marble columns, as tall as the building minus a heavy entablature, standing on a broad flight of low steps; behind the columns a recessed wall painted brick red, over a dark grey stone base with round-arched doorways and rows of narrow windows;
 // the entablature (stepped architrave, a frieze with the lettering POSTE E TELEGRAFI, a plain parapet band) runs over the colonnade and ends in a pier at each end; the wings each side are flat pale marble walls in horizontal courses
 // with tall narrow windows (four rows: very tall on the ground floor, small, tall, small) in recessed bays between flat piers, each window on a projecting sill; the roof is flat, no tower and no clock on the front.
-// Not verified, not drawn: the curved corner (no photo of it; the footprint keeps a plain corner), the winged relief figures at the ends of the frieze, the roof antennas, the exact stair depth and column count behind the first view (12 counted in the front photo).
+// Not verified, not drawn: a curved corner (none shows in any photo looked at: "Palazzo delle Poste di Palermo, anni 30.jpg" and the front views show square corners; the footprint keeps them square), the winged relief figures at the ends of the frieze, the roof antennas, the exact stair depth and column count behind the first view (12 counted in the front photo).
 import * as THREE from 'three';
 import { PI, bx, cyl, begin, end, defMat, mul, tr, frame, prism, panel, pairsOf, groundRange, groundY, initShared, noiseDots, streaks, paintAshlar } from './lmc-kit.js';
 

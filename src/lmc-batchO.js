@@ -1,6 +1,6 @@
 // City landmarks, batch O: three Palermo churches drawn from reference photos. Registered in src/landmarks-city.js as BATCH_O.
-// Chiesa di Terrasanta (w45407453): NOT built. No photograph of its exterior exists on Wikimedia Commons (searched by name and in the Palermo church categories; the only hits are a Bordighera church and the district map),
-// so the generic baked building stays and nothing is invented.
+// Chiesa di Terrasanta (w45407453) is not in this batch: no photograph of its exterior was found on Wikimedia Commons (searched by name and in the Palermo church categories; the only hits are a Bordighera church
+// and the district map). It was built later, from Mapillary frames, in src/lmc-batchR.js.
 // Reference photos (Wikimedia Commons, looked at, nothing copied; only proportions and colours read):
 //  San Gioacchino all'Olivella: "San Gioacchino all'Olivella.jpg" (the whole front from the street). Read: a narrow front of golden calcarenite in two orders. Lower order: a rusticated corner pilaster each side with a Corinthian capital,
 //  a second pilaster inside it, a framed double door of panelled wood under a triangular pediment, an oval relief of the saint in clouds over it, a broken segmental pediment as the lower entablature. Upper order narrower: pilasters, one framed window,
@@ -11,10 +11,12 @@
 //  a central portal with a curved-top door, an aedicule with a small statue and a broken pediment over it, an entablature all across. Upper order: a narrow central block (about 0.45 of the width) with a plaster panel, one framed window,
 //  stone pilasters each side, an entablature, a segmental cap with a shell, a cross; at each side a stepped parapet with a big stone scroll and pinecone finials. Side wall of the nave: white plaster, tall stone pilasters with finials, blind arched windows
 //  high up; a low brown dome on a white drum behind the nave (seen from the south-east). Heights are estimated from the photos (parapet 0.45 of the width, central block top 0.66, cap 0.78); the roof behind is assumed.
-//  Chiesa del Santissimo Crocifisso all'Albergheria (ruin): "Ruderi Ss. Crocifisso.jpg". Read: a roofless shell of red-brown brick and tufa with plaster patches, broken tops, a tall wall with a round arch filled with brick, a smaller arch low to the left.
-//  Only the one photo exists; the exact outline of the wall tops is not known, so the ragged tops are invented within what the photo shows.
+//  Chiesa del Santissimo Crocifisso all'Albergheria (ruin): Mapillary frames 226364616169657, 263625822058112, 565034704637546, 2750871075202760 and 121555313558242 (2021-08, views from the north-east
+//  and along the street) and the 25 cm orthophoto of the Regione Siciliana. Read: pale broken walls; a tall fragment on the side towards the pitch with a large painted San Benedetto il Moro, stepped and
+//  jagged on its left; behind a new low wall of pale blocks a plastered wall with two round arches; old brown tufa along the street, higher at the far corner with pilaster remains.
+//  Not verified: the wall tops are followed by eye; the north-west and south-west sides are not seen (low broken walls); the pitch and its chain-link fence outside the footprint are not built.
 import * as THREE from 'three';
-import { PI, bx, sphere, cyl, extrude, prism, begin, end, defMat, mul, tr, frame, groundY, initShared, noiseDots, streaks, pairsOf, groundRange, gable, statue, paintAshlar, RNG } from './lmc-kit.js';
+import { PI, bx, sphere, cyl, panel, extrude, prism, begin, end, defMat, mul, tr, frame, groundY, initShared, noiseDots, streaks, pairsOf, groundRange, gable, statue, paintAshlar, RNG } from './lmc-kit.js';
 
 // ---- shared helpers
 function mk(m, n) {
@@ -222,43 +224,94 @@ function buildStefano() {
 }
 
 // =====================================================================================================
-// Chiesa del Santissimo Crocifisso all'Albergheria: a roofless ruin, bare walls of brick and tufa with broken tops
+// Chiesa del Santissimo Crocifisso all'Albergheria: a roofless ruin. Frames on the two mapped edges seen in the photos: the north-east one towards the pitch and the south-east one on the street.
 // =====================================================================================================
 const CR = { id: 'w279887578', p: [-330.4, 644.5, -315, 663.5, -326.2, 670.3, -335.7, 657.3, -333.3, 655.7, -332.9, 653.7, -334.4, 651.8, -336.3, 649.5] };
-function crWall(g, w, h) {
-  const r = RNG(8301);
-  g.fillStyle = '#b06a48'; g.fillRect(0, 0, w, h);
-  const bh = h / 22;
-  for (let j = 0; j < 22; j++) { let x = -r() * 14; while (x < w) { const bw = 12 + r() * 12; g.fillStyle = `hsl(${12 + r() * 14},${40 + r() * 16}%,${34 + r() * 14}%)`; g.fillRect(x + 1, j * bh + 1, bw - 2, bh - 2); x += bw; } }
-  for (let i = 0; i < 9; i++) { const x = r() * w, y = r() * h, rw = 30 + r() * 60, rh = 24 + r() * 50, gr = g.createRadialGradient(x, y, 2, x, y, rw); gr.addColorStop(0, 'rgba(226,212,184,0.85)'); gr.addColorStop(1, 'rgba(226,212,184,0)'); g.fillStyle = gr; g.fillRect(x - rw, y - rh, rw * 2, rh * 2); }
-  noiseDots(g, w, h, w * h / 40, 2, 8302, ['rgba(40,25,15,0.14)', 'rgba(220,190,150,0.12)']);
-  streaks(g, w, h, 18, 8303, 0.16, h * 0.4, '40,28,18');
-  const gb = g.createLinearGradient(0, h, 0, h * 0.75); gb.addColorStop(0, 'rgba(30,40,20,0.3)'); gb.addColorStop(1, 'rgba(30,40,20,0)'); g.fillStyle = gb; g.fillRect(0, h * 0.75, w, h * 0.25);
+// weathered pale plaster over masonry: where it has fallen the ochre stones show, with dark holes and rain streaks
+function crPlaster(g, w, h) {
+  const r = RNG(8301), wrap = (fn) => { for (const dx of [-w, 0, w]) for (const dy of [-h, 0, h]) { g.save(); g.translate(dx, dy); fn(); g.restore(); } };
+  g.fillStyle = '#d9cfb8'; g.fillRect(0, 0, w, h);
+  noiseDots(g, w, h, 900, 3, 8302, ['rgba(120,100,76,0.16)', 'rgba(250,244,228,0.22)']);
+  for (let i = 0; i < 11; i++) {   // fallen plaster: a ragged patch of small stones
+    const x = r() * w, y = r() * h, rx = 10 + r() * 30, ry = 8 + r() * 22, out = [];
+    for (let k = 0; k < 11; k++) { const a = k / 11 * 2 * PI, f = 0.6 + r() * 0.65; out.push([x + Math.cos(a) * rx * f, y + Math.sin(a) * ry * f]); }
+    const stones = []; for (let k = 0; k < 40; k++) stones.push([x + (r() - 0.5) * rx * 2.4, y + (r() - 0.5) * ry * 2.4, 4 + r() * 8, 3 + r() * 4, r()]);
+    wrap(() => { g.save(); g.beginPath(); out.forEach((q, k) => k ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.closePath(); g.fillStyle = '#8f7a5c'; g.fill(); g.clip();
+      for (const [a, b, c, d, k] of stones) { g.fillStyle = k < 0.45 ? '#b39a70' : k < 0.75 ? '#a5744e' : '#c4b28c'; g.fillRect(a, b, c, d); } g.restore(); g.strokeStyle = 'rgba(70,55,36,0.45)'; g.lineWidth = 1.2; g.beginPath(); out.forEach((q, k) => k ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); g.closePath(); g.stroke(); });
+  }
+  for (let i = 0; i < 12; i++) { const x = r() * w, y = r() * h; g.fillStyle = 'rgba(30,22,16,0.7)'; g.fillRect(x, y, 3 + r() * 3, 3 + r() * 3); }
+  streaks(g, w, h, 20, 8303, 0.14, h * 0.45, '60,52,42');
+}
+// the newer wall of small pale blocks that closes the ruin towards the pitch
+function crBlock(g, w, h) { paintAshlar(g, w, h, 2, 2, 0.25, 0.42, '#cbbb93', '#9d8f72', 8304, 1.2, 0.09); streaks(g, w, h, 6, 8305, 0.08, h * 0.4, '70,56,38'); }
+// the mural on the standing wall: San Benedetto il Moro in a white habit, a white halo, on a yellow ground, the name lettered at the sides
+function crMural(g, w, h) {
+  const FW = 6, FH = 13.3, X = (m) => m / FW * w, Y = (m) => h - m / FH * h, r = RNG(8306);
+  g.fillStyle = '#cba95c'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 700, 2.5, 8307, ['rgba(120,90,40,0.18)', 'rgba(240,220,160,0.18)']);
+  const P = (pts, c) => { g.fillStyle = c; g.beginPath(); pts.forEach((q, k) => k ? g.lineTo(X(q[0]), Y(q[1])) : g.moveTo(X(q[0]), Y(q[1]))); g.closePath(); g.fill(); };
+  const E = (x, y, rx, ry, c) => { g.fillStyle = c; g.beginPath(); g.ellipse(X(x), Y(y), X(rx), ry / FH * h, 0, 0, 2 * PI); g.fill(); };
+  E(3.0, 11.15, 1.85, 1.85, '#e9ebe6'); E(3.0, 11.15, 1.6, 1.6, '#d3dad9');
+  // habit: shoulders, wide sleeves, the long skirt
+  P([[1.5, 0.3], [4.5, 0.3], [4.15, 4.2], [4.3, 6.2], [5.3, 7.4], [4.7, 9.0], [3.7, 9.8], [2.4, 9.8], [1.3, 9.1], [0.75, 7.3], [1.5, 5.8], [1.9, 4.2]], '#e4e8ea');
+  P([[1.35, 8.6], [0.75, 7.3], [1.9, 5.6], [3.9, 6.9], [3.5, 7.9], [2.2, 7.2]], '#b9c8d4');
+  for (const [a, b, c] of [[2.2, 2.45, 5.6], [2.95, 3.05, 6.2], [3.75, 3.55, 5.5]]) P([[a - 0.07, 0.3], [a + 0.09, 0.3], [b + 0.04, c], [b - 0.04, c]], '#b4c2cd');
+  g.strokeStyle = '#4c5864'; g.lineWidth = 1.6; g.beginPath(); [[1.5, 0.3], [1.9, 4.2], [1.5, 5.8], [0.75, 7.3], [1.3, 9.1], [2.4, 9.8]].forEach((q, k) => k ? g.lineTo(X(q[0]), Y(q[1])) : g.moveTo(X(q[0]), Y(q[1]))); g.stroke();
+  // head, hair, neck, and the raised hand
+  P([[2.6, 9.5], [3.5, 9.5], [3.4, 10.2], [2.7, 10.2]], '#4a2e22'); E(3.0, 11.05, 1.0, 1.15, '#231a18'); E(3.05, 10.8, 0.7, 0.9, '#5a382a');
+  for (const x of [2.75, 3.35]) E(x, 10.95, 0.11, 0.07, '#1d1210'); P([[2.75, 10.25], [3.35, 10.25], [3.05, 10.12]], '#2c1a14');
+  P([[2.75, 7.3], [3.35, 7.15], [3.75, 8.1], [3.6, 9.15], [3.42, 9.15], [3.36, 8.45], [3.1, 8.75], [2.65, 8.05]], '#4e3024');
+  g.fillStyle = '#3b2f22'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `bold ${Math.round(0.46 / FH * h)}px sans-serif`;
+  ['SAN', 'BENE', 'DETTO'].forEach((t, k) => g.fillText(t, X(0.72), Y(10.35 - k * 0.55), X(1.3))); ['IL', 'MORO'].forEach((t, k) => g.fillText(t, X(5.25), Y(10.1 - k * 0.55), X(1.3)));
+  streaks(g, w, h, 12, 8308, 0.1, h * 0.3, '70,52,30');
+  for (let i = 0; i < 5; i++) { g.fillStyle = 'rgba(150,130,96,0.55)'; g.beginPath(); g.ellipse(r() * w, Y(r() * 1.4), 4 + r() * 12, 3 + r() * 8, 0, 0, 7); g.fill(); }
 }
 function buildCrocifisso() {
   initShared();
-  const pts = pairsOf(CR.p), gr = groundRange(pts);
-  let area = 0; for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; area += a[0] * b[1] - b[0] * a[1]; }
-  const sgn = area >= 0 ? 1 : -1, r = RNG(8311), y0 = gr.avg;
-  defMat('bocrWall', 256, 256, [3.2, 3.2], crWall);
+  const pts = pairsOf(CR.p), gr = groundRange(pts), r = RNG(8311), y0 = gr.avg;
+  defMat('bocrPlaster', 256, 256, [4.6, 4.6], crPlaster);
+  defMat('bocrBlock', 128, 128, [2, 2], crBlock);
+  defMat('bocrMural', 192, 384, [6, 13.3], crMural);
   begin(y0);
-  const c = pts.reduce((s, p) => [s[0] + p[0] / pts.length, s[1] + p[1] / pts.length], [0, 0]);
   // a floor of rubble and earth inside, level with the lowest ground
-  prism('earth', pts, gr.lo - 1.0, y0 + 0.15, { c: '#9a8a70' });
-  // the tallest wall: the end of the nave, with a brick-filled arch: the edge farthest from the centroid of the long side
-  let tall = 0, best = 0;
-  for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > best) { best = l; tall = i; } }
-  for (let i = 0; i < pts.length; i++) {
-    const A = pts[i], B = pts[(i + 1) % pts.length], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz); if (l < 0.8) continue;
-    const nx = sgn * dz / l, nz = -sgn * dx / l, n = Math.max(1, Math.round(l / 2.2));
-    for (let k = 0; k < n; k++) {
-      const t0 = k / n, t1 = (k + 1) / n, mx = A[0] + dx * (t0 + t1) / 2, mz = A[1] + dz * (t0 + t1) / 2, seg = l / n;
-      const hh = i === tall ? 6.5 - 1.6 * Math.abs(k - (n - 1) / 2) / Math.max(1, n / 2) + r() * 0.8 : 1.6 + r() * 3.4 * (k % 3 === 1 ? 1.3 : 0.7);
-      bx('bocrWall', frame(mx, y0 - 0.4, mz, nx, nz), -seg / 2, seg / 2, 0, hh + 0.4, -0.85, 0, { uvo: [r(), 0] });
-      bx('flat', frame(mx, y0 - 0.4, mz, nx, nz), -seg / 2, seg / 2, hh + 0.4, hh + 0.55, -0.85, 0, { c: '#7d6a58', noao: true });
-    }
+  prism('flat', pts, gr.lo - 1.0, y0 + 0.15, { c: '#6f624c' });
+  // a standing piece of wall: its ragged outline as [s, height] along the frame's x, th thick behind the plane z
+  const wall = (key, F, prof, z, th, c, holes = []) => {
+    const sh = new THREE.Shape(); sh.moveTo(prof[0][0], -1.2); for (const [a, b] of prof) sh.lineTo(a, b); sh.lineTo(prof[prof.length - 1][0], -1.2);
+    for (const [hx, hw, spring] of holes) { const p = new THREE.Path(); p.moveTo(hx - hw / 2, 0); p.lineTo(hx - hw / 2, spring); p.absarc(hx, spring, hw / 2, PI, 0, true); p.lineTo(hx + hw / 2, 0); p.lineTo(hx - hw / 2, 0); sh.holes.push(p); }
+    extrude(key, sh, th, { M: mul(F, tr(0, 0, z - th)), c });
+  };
+  // north-east side, towards the pitch: origin at the street corner, x towards the north corner
+  const NE = frame(-315.0, y0, 663.5, 0.777, -0.630);
+  wall('bocrBlock', NE, [[0, 3.35], [7.7, 3.35]], 0, 0.5);
+  bx('flat', NE, 0, 7.75, 3.35, 3.47, -0.55, 0.05, { c: '#b8ab8c', noao: true });
+  // the tall surviving fragment that carries the mural, broken in steps on its left, then lower rough walling to the north corner
+  wall('bocrPlaster', NE, [[5.5, 4.6], [6.0, 6.2], [6.7, 6.4], [6.5, 7.5], [7.4, 8.1], [7.2, 9.4], [8.3, 10.2], [8.2, 11.5], [9.2, 12.4], [9.3, 13.7], [10.6, 14.5], [12.6, 14.25], [14.2, 14.7], [15.3, 14.1], [15.75, 13.2]], -0.52, 0.8);
+  panel('bocrMural', 6, 13.3, { M: mul(NE, tr(12.6, 0.35, -0.5)) });
+  wall('tufa', NE, [[15.75, 10.4], [16.3, 11.2], [16.9, 9.7], [17.2, 10.3], [17.7, 8.4], [18.6, 9.5], [19.0, 7.4], [19.5, 8.2], [20.7, 8.4], [21.0, 6.1], [21.8, 7.2], [22.7, 5.2], [23.3, 6.1], [23.9, 4.6], [24.4, 5.1]], -0.1, 0.75, '#8e8576');
+  // broken stones left along the stepped edge
+  for (const [a, b, k] of [[5.7, 5.1, 0.5], [6.35, 6.35, 0.4], [6.9, 7.65, 0.45], [7.6, 9.5, 0.35], [8.15, 10.7, 0.5], [8.8, 12.2, 0.4], [9.6, 13.9, 0.3]]) bx('tufa', mul(NE, tr(a, b, -0.95)), -k / 2, k / 2, -k / 2, k / 2, -0.3, 0.46, { c: '#a38f6c', rz: r() * 1.2 });
+  // the plastered cross wall behind, with its two round arches: dark beyond them
+  wall('bocrPlaster', NE, [[2.3, 6.1], [3.0, 7.2], [3.9, 8.0], [5.0, 7.4], [6.3, 8.8], [7.4, 8.0], [8.7, 8.6], [10.1, 9.5], [11.2, 8.1], [12.6, 8.8]], -5.2, 0.7, '#f4ecd8', [[5.0, 3.0, 4.6], [9.4, 3.0, 4.6]]);
+  for (const hx of [5.0, 9.4]) {
+    const ring = new THREE.Shape(); ring.absarc(0, 0, 1.85, 0, PI, false); ring.absarc(0, 0, 1.5, PI, 0, true);
+    extrude('tufa', ring, 0.14, { M: mul(NE, tr(hx, 4.6, -5.22)), c: '#c2ab82', noao: true });
+    panel('flat', 3.5, 6.2, { M: mul(NE, tr(hx, 0, -6.6)), c: '#241d16' });
   }
-  for (let i = 0; i < 9; i++) { const a = r() * 2 * PI, d = r() * 4; bx('earth', frame(c[0] + Math.cos(a) * d, y0, c[1] + Math.sin(a) * d, 0, 1), -0.5, 0.5, 0, 0.3 + r() * 0.5, -0.4, 0.4, { c: '#8a7a64', ry: r() }); }
+  // south-east side, on the street: old brown tufa, tall with remains of pilasters at the far (south) corner, falling towards the block wall
+  const SE = frame(-326.2, y0, 670.3, 0.519, 0.855);
+  wall('bocrPlaster', SE, [[0, 7.7], [0.5, 8.4], [1.1, 7.9], [1.7, 6.7], [2.4, 7.3], [3.0, 6.9], [3.5, 5.3], [4.4, 5.6], [5.2, 4.6], [6.6, 5.3], [7.3, 4.4], [8.1, 4.0], [9.0, 4.5], [10.0, 4.2], [11.0, 3.45], [13.05, 3.35]], -0.05, 0.7, '#8f7a5a');
+  wall('tufa', SE, [[0, 2.6], [2.6, 2.9], [4.2, 2.2], [6.8, 3.1], [9.4, 2.5], [13.05, 3.2]], 0, 0.06, '#8c7654');
+  for (const a of [0.45, 2.15]) { bx('tufa', SE, a - 0.28, a + 0.28, -0.8, 6.2, -0.1, 0.1, { c: '#a58c64' }); bx('tufa', SE, a - 0.4, a + 0.4, 5.9, 6.25, -0.1, 0.18, { c: '#a58c64' }); }
+  // the other sides are not seen in the photos: low broken walls on the mapped edges
+  let area = 0; for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; area += a[0] * b[1] - b[0] * a[1]; }
+  const sgn = area >= 0 ? 1 : -1;
+  for (let i = 2; i < pts.length; i++) {
+    const A = pts[i], B = pts[(i + 1) % pts.length], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz), n = Math.max(2, Math.round(l / 1.6));
+    const prof = []; for (let k = 0; k <= n; k++) prof.push([l * (k / n - 0.5), 2.6 + r() * 2.8]);
+    wall(i % 2 ? 'bocrPlaster' : 'tufa', frame((A[0] + B[0]) / 2, y0, (A[1] + B[1]) / 2, sgn * dz / l, -sgn * dx / l), prof, 0, 0.6, i % 2 ? '#d8cdb4' : '#9c8668');
+  }
+  for (let i = 0; i < 9; i++) { const a = r() * 2 * PI, d = r() * 3.5; bx('flat', frame(-325.5 + Math.cos(a) * d, y0, 660 + Math.sin(a) * d, 0, 1), -0.5, 0.5, 0, 0.3 + r() * 0.6, -0.4, 0.4, { c: '#655844', ry: r() }); }
+  for (const [x, z, k] of [[-323.5, 664.5, 1.0], [-327.5, 659.5, 0.8], [-320.5, 661.8, 0.6]]) sphere('flat', k, { p: [x, y0 + k * 0.4, z], c: '#56683a', ky: 0.8, seg: 6 });
   const o = end('Chiesa del Santissimo Crocifisso');
   o.userData.solids = [[CR.p, null, y0 + 3]];
   return o;

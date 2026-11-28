@@ -12,12 +12,12 @@ import { ZISA, CINESE } from './lmc-f.js';   // review-2 items 6 and 7: the Zisa
 import { FLOATING_DOCK } from './lmc-port.js';   // board item n10
 import { CUBA, EREMITI, NORMANNI, STAZIONE_MARITTIMA } from './lmc-e.js';   // board item c4: rebuilt on the streamed ground, with collision
 
-import { POVERE, GIUSTIZIA, NISCEMI, CASTELNUOVO, VERDURA, MAREDOLCE, TONNARA, PORTA_FELICE_1, PORTA_FELICE_2, CAPPUCCINI } from './lmc-d.js';
+import { POVERE, GIUSTIZIA, NISCEMI, CASTELNUOVO, VERDURA, MAREDOLCE, TONNARA, CAPPUCCINI } from './lmc-d.js';
 import { STABILIMENTO, MONDELLO_GATE, MONDELLO_BEACH, GYMNASIUM, VILLA_GIULIA_GATE, TEATRO_GARIBALDI, UCCIARDONE, FIERA_GATE, IGIEA, FLORIO, IDA } from './lmc-c.js';
 import { MONDELLO_LANDMARKS } from './lmc-mondello.js';
 import { GATES } from './lmc-gates.js';
 import { ARCO_CUTO } from './lmc-cuto.js';   // the Arco di Cutò and the front of the Palazzo Filangeri di Cutò on Via Maqueda (src/lmc-cuto.js)
-import { TOWN_LANDMARKS } from './lmc-towns.js';   // the towns: Villabate's Chiesa Madre di Sant'Agata, bell tower of San Giuseppe and bandstand, the Duomo di Monreale, the Chiesa Madre of Belmonte Mezzagno and of Capaci (src/lmc-towns.js)
+import { TOWN_LANDMARKS } from './lmc-towns.js';   // the towns: Villabate's Chiesa Madre di Sant'Agata, church and bell tower of San Giuseppe and Palchetto della Musica, the Duomo di Monreale, the Chiese Madri of Belmonte Mezzagno and Capaci (src/lmc-towns.js)
 import { SAN_FRANCESCO } from './lmc-sanfrancesco.js';
 import { SANT_AGOSTINO } from './lmc-santagostino.js';
 import { SALVATORE } from './lmc-salvatore.js';
@@ -47,16 +47,22 @@ import { BATCH_M } from './lmc-batchM.js';
 import { BATCH_N } from './lmc-batchN.js';
 import { BATCH_O } from './lmc-batchO.js';
 import { BATCH_P } from './lmc-batchP.js';
+import { BATCH_Q } from './lmc-batchQ.js';
+import { BATCH_R } from './lmc-batchR.js';
+import { BATCH_S } from './lmc-batchS.js';
+import { BATCH_T } from './lmc-batchT.js';
 import { CHURCHES } from './lmc-churches.js';
+import { ROUND2 } from './lmc-r2.js';
 import { PIAZZA } from './lmc-piazza.js';
 import { PIAZZA2 } from './lmc-piazza2.js';
 import { SAN_DOMENICO } from './lmc-sandomenico.js';   // the Chiesa di San Domenico: front, two bell towers, nave (src/lmc-sandomenico.js)
 import { EUFEMIA } from './lmc-eufemia.js';   // the sign of the Hotel Eufemia in Isola delle Femmine, the destination of the U cuinnutu fare (src/lmc-eufemia.js)
+import { MONUMENTS } from './lmc-monuments.js';   // statues, columns, obelisks, the Capaci stelae and the Fontana d'Ercole (src/lmc-monuments.js)
 
 export const CITY_LANDMARKS = [
   POLITEAMA, STADIO, UTVEGGIO, SANTUARIO, ZISA, CUBA, EREMITI, PONTE_AMM, NORMANNI,
   STABILIMENTO, MONDELLO_GATE, MONDELLO_BEACH, CINESE, GYMNASIUM, VILLA_GIULIA_GATE, TEATRO_GARIBALDI, UCCIARDONE, FIERA_GATE, IGIEA, FLORIO, IDA, STAZIONE_MARITTIMA,
-  POVERE, GIUSTIZIA, NISCEMI, CASTELNUOVO, VERDURA, MAREDOLCE, TONNARA, PORTA_FELICE_1, PORTA_FELICE_2, CAPPUCCINI,
+  POVERE, GIUSTIZIA, NISCEMI, CASTELNUOVO, VERDURA, MAREDOLCE, TONNARA, CAPPUCCINI,
   FLOATING_DOCK,
   ...GROUP_G,
   ...MONDELLO_LANDMARKS,
@@ -64,7 +70,8 @@ export const CITY_LANDMARKS = [
   ARCO_CUTO,
   EUFEMIA,
   ...CHURCHES,
-  ...BATCH_M, ...BATCH_N, ...BATCH_O, ...BATCH_P, 
+  ...ROUND2,
+  ...BATCH_M, ...BATCH_N, ...BATCH_O, ...BATCH_P, ...BATCH_Q, ...BATCH_R, ...BATCH_S, ...BATCH_T,
   ...BATCH_I, ...BATCH_J, ...BATCH_K, ...BATCH_L, 
   ...BATCH_E, ...BATCH_F, ...BATCH_G, ...BATCH_H, 
   ...BATCH_A, ...BATCH_B, ...BATCH_C, ...BATCH_D, 
@@ -72,4 +79,5 @@ export const CITY_LANDMARKS = [
   ...PIAZZA, ...PIAZZA2,
   SAN_DOMENICO, SAN_FRANCESCO, SANT_AGOSTINO, SALVATORE, SANT_IGNAZIO, POSTE,
   ...TOWN_LANDMARKS,
+  ...MONUMENTS,
 ];

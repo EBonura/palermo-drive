@@ -12,11 +12,14 @@
 //   curved hood, pilaster pairs), concave scroll wings, a triangular pediment with urns and a cross. Heights relative to the width (11.2 m): lower cornice 0.68, upper cornice 1.1, apex 1.27.
 // Sant'Antonio di Padova: narrow front on the north-east end of the long nave, white with ochre corner pilasters in one order: portal with a curved broken pediment, a window with scrolls over it, a frieze of blocks, a triangular
 //   pediment with an oculus; a lower wing each side (oculus). The front is the short end that faces the piazza at Corso Tukory (the long wall along the avenue is not a front).
-// Santa Maria della Grotta: weathered grey-tan stone front on Corso Vittorio Emanuele in two orders: a big door under a triangular pediment with garlands, two pilaster pairs each side, a balustrade, an arched window with
-//   pilaster groups, scroll wings, a curved broken top with a central cartouche and two big volutes.
-// Not known and not drawn: the roofs and side walls behind the fronts (plain walls, tile roofs assumed), the interiors, iron work, the sculpture (painted as relief shapes).
+// Santa Maria della Grotta: weathered grey-tan stone front on Corso Vittorio Emanuele, heavily carved: a plinth; a pair of pilasters with carved capitals each side of the door and one at each corner; a tall panelled door between consoles with
+//   hanging fruit, a frieze of garlands, a deep triangular pediment; a barred window in a scrolled frame each side; a carved frieze and cornice; an attic with garlands, diamond panels and a little balustrade; above, an arched window with fan
+//   glazing, paired pilasters with shell capitals, scrolled wings, and a broken curved pediment with two scrolls round a coat of arms. Behind rises the plain cream block with an iron rail on its roof. Further photos: Palermo - Biblioteca centrale
+//   della Regione Siciliana - 2025-09-29 15-38-43 001.JPG; Biblioteca centrale della Regione siciliana, Palermo.1.JPG; Santa Maria della Grotta (Palermo) 14 07 2024 03.jpg; Festa Santa Rosalia PA 15 07 2019 20.jpg.
+//   The carving is blocked out (scrolls, swags and bosses), not copied; the front stands half a metre inside the outline so the relief does not reach the pavement; the niche bay to its right (part of the neighbour) is not drawn.
+// Not known and not drawn: the roofs and side walls behind the fronts (plain walls, tile roofs assumed but for the flat topped block at the Grotta, whose windows are placed by eye), the interiors, iron work, the sculpture (painted as relief shapes).
 import * as THREE from 'three';
-import { PI, bx, sphere, extrude, prism, pyramid, begin, end, defMat, mul, tr, rotY, frame, groundY, initShared, noiseDots, streaks, pairsOf, groundRange, gable, archShape, balus, cyl } from './lmc-kit.js';
+import { PI, bx, sphere, extrude, prism, panel, pyramid, begin, end, defMat, mul, tr, rotY, frame, groundY, initShared, noiseDots, streaks, pairsOf, groundRange, gable, archShape, balus, cyl } from './lmc-kit.js';
 
 // ---------- shared helpers ----------
 function makeFrame(O, N) {
@@ -76,27 +79,28 @@ function build(C) {
   const F = frame(C.O[0], y0, C.O[1], C.N[0], C.N[1]), at = (x, y, z) => mul(F, tr(x, y, z));
   const k = C.k, EAVE = C.eave, nv = C.nave, naveH = nv ? nv.top - EAVE : 0;
   defMat(k + 'F', C.tex[0], C.tex[1], [hw * 2, C.FH], C.paint);
-  defMat(k + 'B', 128, 256, [4.5, EAVE], (g, w, h) => paintWall(g, w, h, EAVE, C.seed, C.wall, C.stone, C.trim));
+  defMat(k + 'B', 128, 256, [4.5, EAVE], C.side || ((g, w, h) => paintWall(g, w, h, EAVE, C.seed, C.wall, C.stone, C.trim)));
+  const back = C.back || 0;   // a front standing behind the outline, so that its deep relief stays inside it
   if (nv) defMat(k + 'N', 128, 256, [4.5, naveH], (g, w, h) => paintWall(g, w, h, naveH, C.seed + 20, C.wall, C.stone, C.trim));
   begin(y0);
-  const body = clipFront(pts, -0.1);
+  const body = clipFront(pts, -0.1 - back);
   prism(k + 'B', body, Math.min(gr.lo, y0) - 1.5, y0 + EAVE, { uvo: [0, -y0 / EAVE] });
   prism('flat', body, y0 + EAVE, y0 + EAVE + 0.12, { c: '#a39a8c' });
   if (nv) {
     const zm = (nv.z0 + nv.z1) / 2;
     bx(k + 'N', F, -nv.w / 2, nv.w / 2, EAVE, nv.top, nv.z1, nv.z0, { uvo: [0, -(y0 + EAVE) / naveH] });
     gable('tile', k + 'N', at(0, 0, zm), nv.w, nv.z0 - nv.z1, nv.top, nv.rise, { ov: 0.35, c: '#b8744f', wc: C.wall });
-  } else {
+  } else if (C.roof) {
     const rf = C.roof, zm = (rf.z0 + rf.z1) / 2;
     gable('tile', k + 'B', at(0, 0, zm), rf.w, rf.z0 - rf.z1, EAVE, rf.rise, { ov: 0.35, c: '#b8744f', wc: C.wall });
   }
   const s = new THREE.Shape(); C.shape(s);
-  extrude(k + 'F', s, 1.3, { M: at(0, 0, -1.35), uv: 'keep', uvk: [1 / (hw * 2), 1 / C.FH], uvo: [0.5, 0], cs: 8, noao: true });
-  const env = { F, at, y0, hw, W };
+  extrude(k + 'F', s, 1.3, { M: at(0, 0, -1.35 - back), uv: 'keep', uvk: [1 / (hw * 2), 1 / C.FH], uvo: [0.5, 0], cs: 8, noao: true });
+  const env = { F, at: back ? (x, y, z) => at(x, y, z - back) : at, y0, hw, W, k, body };
   C.trims(env);
   const o = end(C.name);
   const ring = (x0, x1, z0, z1) => [W(x0, z0), W(x1, z0), W(x1, z1), W(x0, z1)].flat();
-  const solids = [[C.p, null, y0 + EAVE]];
+  const solids = [[back ? body.flat() : C.p, null, y0 + EAVE]];
   if (nv) solids.push([ring(-nv.w / 2, nv.w / 2, nv.z1, nv.z0), null, y0 + nv.top + nv.rise]);
   for (const e of C.solids || []) solids.push([ring(e[0], e[1], e[2], e[3]), null, y0 + e[4]]);
   o.userData.solids = solids;
@@ -294,65 +298,114 @@ const AN = {
 };
 
 // =====================================================================================================
-// Santa Maria della Grotta al Cassaro (Corso Vittorio Emanuele): front 13.0 m, two orders, scroll wings, curved broken top
+// Santa Maria della Grotta al Cassaro (Corso Vittorio Emanuele): front 13.0 m of carved grey-tan stone, two orders, an attic with a balustrade, volutes, a broken curved pediment round a coat of arms
 // =====================================================================================================
-const GR_HW = 6.5, GR_LOW = 10.4, GR_BAL = 11.4, GR_UPC = 16.8, GR_TOP = 19.4, GR_ST = '#988b76', GR_LT = '#b0a288', GR_DK = '#6f6352';
+const GR_HW = 6.5, GR_LOW = 10.2, GR_BAL = 11.9, GR_UPC = 16.9, GR_TOP = 19.4, GR_BACK = 0.55, GR_SIDE = 20.8, GR_ST = '#9d8e74', GR_LT = '#b3a489', GR_DK = '#625542';
+const GR_PIL = [2.62, 3.5, 6.12], GR_UPIL = [2.3, 3.05];   // pilaster centres: the pair and the corner one below, the pair above
 function paintGR(g, w, h) {
-  const { R, arch, tri, circ, pil, shade, foot, X, Y, sx } = P(g, w, h, 13.0, GR_TOP);
+  const { R, arch, tri, circ, shade, foot, X, Y, sx, sy } = P(g, w, h, 13.0, GR_TOP);
   g.fillStyle = GR_ST; g.fillRect(0, 0, w, h);
-  noiseDots(g, w, h, w * h / 40, 2, 7401, ['rgba(60,48,34,0.14)', 'rgba(225,212,184,0.10)', 'rgba(40,30,20,0.12)']);
-  g.fillStyle = 'rgba(50,40,28,0.12)'; for (let y = 1.6; y < GR_LOW - 1.4; y += 0.6) g.fillRect(0, Y(y), w, 1);
-  R(-6.5, 0, 6.5, 1.5, '#7f725d');
-  for (const sg of [-1, 1]) {
-    pil(sg * 3.25, 1.5, GR_LOW - 1.5, 0.95, GR_LT); pil(sg * 5.0, 1.5, GR_LOW - 1.5, 1.0, GR_LT);
-    R(sg * 3.25 - 0.3, 3.0, sg * 3.25 + 0.3, GR_LOW - 2.4, 'rgba(60,48,34,0.25)'); R(sg * 5.0 - 0.3, 3.0, sg * 5.0 + 0.3, GR_LOW - 2.4, 'rgba(60,48,34,0.25)');
-    R(sg * 6.0 - 0.45, 2.0, sg * 6.0 + 0.45, 4.2, 'rgba(60,48,34,0.3)');
-    R(sg * 3.25 - 0.7, GR_LOW - 1.5, sg * 3.25 + 0.7, GR_LOW - 1.0, GR_DK); R(sg * 5.0 - 0.7, GR_LOW - 1.5, sg * 5.0 + 0.7, GR_LOW - 1.0, GR_DK);
-  }
-  // portal, door, garlands, triangular pediment
-  R(-2.5, 1.5, 2.5, 6.2, GR_LT); R(-1.6, 1.5, 1.6, 5.7, '#5b3330'); R(-0.03, 1.5, 0.03, 5.7, '#2a1412');
-  for (let y = 1.8; y < 5.5; y += 0.8) { R(-1.5, y, -0.08, y + 0.65, 'rgba(0,0,0,0.16)'); R(0.08, y, 1.5, y + 0.65, 'rgba(0,0,0,0.16)'); }
-  R(-2.7, 6.2, 2.7, 6.4, GR_DK);
-  g.strokeStyle = GR_DK; g.lineWidth = 2; for (const sg of [-1, 1]) { g.beginPath(); g.moveTo(X(sg * 0.2), Y(7.2)); g.quadraticCurveTo(X(sg * 1.2), Y(6.3), X(sg * 2.3), Y(7.1)); g.stroke(); circ(sg * 1.2, 7.0, 0.22, GR_LT); }
-  tri(-3.1, 3.1, 7.4, 1.75, GR_LT); tri(-2.4, 2.4, 7.55, 1.3, GR_ST);
-  for (const sg of [-1, 1]) { circ(sg * 2.9, 3.4, 0.4, GR_LT); circ(sg * 2.9, 3.4, 0.2, GR_DK); }
-  R(-6.5, GR_LOW - 1.5, 6.5, GR_LOW, GR_LT); R(-6.5, GR_LOW - 1.5, 6.5, GR_LOW - 1.4, 'rgba(40,30,20,0.4)'); R(-6.5, GR_LOW - 1.1, 6.5, GR_LOW - 0.7, GR_DK);
-  // balustrade band, upper order
-  R(-6.5, GR_LOW, 6.5, GR_BAL, GR_ST);
-  for (const sg of [-1, 1]) { tri(sg * 4.6 - 0.9, sg * 4.6 + 0.9, GR_LOW + 0.25, 0.4, 'rgba(60,48,34,0.35)'); circ(sg * 4.6, GR_LOW + 0.6, 0.12, GR_DK); }
-  R(-1.9, GR_LOW, 1.9, GR_BAL, '#c9bda3'); for (let x = -1.7; x <= 1.7; x += 0.34) R(x - 0.07, GR_LOW + 0.1, x + 0.07, GR_BAL - 0.1, '#7a6e5a');
-  R(-6.5, GR_BAL, 6.5, GR_UPC, GR_ST);
-  for (const sg of [-1, 1]) { pil(sg * 3.4, GR_BAL, GR_UPC - 0.9, 0.9, GR_LT); pil(sg * 4.7, GR_BAL, GR_UPC - 0.9, 0.9, GR_LT); circ(sg * 5.95, 13.6, 0.5, GR_LT); circ(sg * 5.95, 13.6, 0.28, GR_DK); }
-  R(-1.95, GR_BAL, 1.95, 15.3, GR_LT); arch(0, 11.6, 16.4, 4.0, GR_LT); arch(0, 11.9, 15.9, 3.1, '#8a9aa6'); R(-1.55, 11.9, 1.55, 14.0, '#8a9aa6'); R(-0.04, 11.9, 0.04, 14.0, '#4a4034'); R(-1.55, 13.2, 1.55, 13.25, '#4a4034'); R(-0.04, 14.0, 0.04, 15.9, '#4a4034');
-  R(-6.5, GR_UPC - 0.7, 6.5, GR_UPC, GR_LT); R(-6.5, GR_UPC - 0.75, 6.5, GR_UPC - 0.68, 'rgba(40,30,20,0.4)');
-  // curved broken top, cartouche and volutes
-  g.fillStyle = GR_LT; g.beginPath(); g.moveTo(X(-5.4), Y(GR_UPC)); g.quadraticCurveTo(X(-4.0), Y(18.6), X(-1.4), Y(18.5)); g.lineTo(X(1.4), Y(18.5)); g.quadraticCurveTo(X(4.0), Y(18.6), X(5.4), Y(GR_UPC)); g.fill();
-  g.fillStyle = GR_ST; g.beginPath(); g.moveTo(X(-4.8), Y(GR_UPC + 0.1)); g.quadraticCurveTo(X(-3.8), Y(18.1), X(-1.4), Y(18.05)); g.lineTo(X(1.4), Y(18.05)); g.quadraticCurveTo(X(3.8), Y(18.1), X(4.8), Y(GR_UPC + 0.1)); g.fill();
-  circ(0, 18.4, 1.0, GR_LT); circ(0, 18.4, 0.7, GR_DK); for (const sg of [-1, 1]) { circ(sg * 1.7, 18.5, 0.65, GR_LT); circ(sg * 1.7, 18.5, 0.35, GR_DK); }
-  shade(GR_LOW, 1.5); shade(GR_UPC, 1.4); streaks(g, w, h, 40, 7402, 0.14, 110, '50,38,26'); foot();
+  const r = (n) => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
+  for (let y = 0, j = 0; y < GR_TOP; y += 0.55, j++) { for (let x = -6.5 - (j % 2) * 0.6, i = 0; x < 6.5; x += 1.25, i++) { const v = r(j * 41 + i * 13 + 5); if (v < 0.42) R(x, y, x + 1.22, y + 0.52, v < 0.2 ? 'rgba(226,208,170,0.3)' : 'rgba(80,66,46,0.2)'); } R(-6.5, y, 6.5, y + 0.035, 'rgba(60,46,30,0.22)'); }
+  noiseDots(g, w, h, w * h / 28, 2, 7401, ['rgba(60,48,34,0.2)', 'rgba(228,214,184,0.14)', 'rgba(40,30,20,0.14)']);
+  const sunk = (x0, y0, x1, y1) => { R(x0, y0, x1, y1, 'rgba(70,56,38,0.42)'); R(x0 + 0.08, y0, x1, y1 - 0.08, 'rgba(210,192,155,0.4)'); };
+  const leaves = (x0, y0, x1, y1, n, seed) => { for (let i = 0; i < n; i++) { const x = x0 + r(seed + i) * (x1 - x0), y = y0 + r(seed + i * 7 + 3) * (y1 - y0); circ(x + 0.04, y - 0.05, 0.1, 'rgba(50,38,24,0.55)'); circ(x, y, 0.09, r(seed + i * 3) < 0.5 ? '#dccba8' : '#b5a283'); } };
+  const swag = (x0, x1, y, drop) => { for (let i = 0; i <= 12; i++) { const t = i / 12, x = x0 + (x1 - x0) * t, yy = y - drop * 4 * t * (1 - t), rr = 0.08 + 0.1 * Math.sin(PI * t); circ(x + 0.04, yy - 0.06, rr, 'rgba(46,34,22,0.5)'); circ(x, yy, rr, i % 2 ? '#d8c6a0' : '#bba886'); } };
+  const volute = (x, y, rr) => { g.strokeStyle = 'rgba(58,45,28,0.8)'; g.lineWidth = Math.max(1, sx * 0.09); g.beginPath(); for (let i = 0; i <= 60; i++) { const a = i / 60 * 4.6 * PI, q = rr * (1 - i / 66); const px = X(x + Math.sign(x) * Math.cos(a) * q), py = Y(y + Math.sin(a) * q); i ? g.lineTo(px, py) : g.moveTo(px, py); } g.stroke(); };
+  // plinth with its panels
+  R(-6.5, 0, 6.5, 1.75, '#948773'); R(-6.5, 1.6, 6.5, 1.75, GR_LT); for (const x of [-5.0, -3.06, 3.06, 5.0]) sunk(x - 0.6, 0.35, x + 0.6, 1.3);
+  // the lower order: pilasters with sunk shafts and carved capitals
+  for (const sg of [-1, 1]) for (const c of GR_PIL) { const x = sg * c, hw_ = 0.36; R(x - hw_, 1.75, x + hw_, 8.6, GR_LT); sunk(x - 0.2, 2.1, x + 0.2, 7.6); R(x - hw_ - 0.07, 1.75, x + hw_ + 0.07, 2.0, '#d0c0a0'); R(x - hw_ - 0.07, 7.85, x + hw_ + 0.07, 8.6, '#b9a888'); leaves(x - hw_, 7.9, x + hw_, 8.45, 14, 100 + c * 17 + sg); R(x - hw_ - 0.1, 8.45, x + hw_ + 0.1, 8.62, '#d8c8a6'); }
+  // side windows in their scrolled frames
+  for (const sg of [-1, 1]) { const x = sg * 4.8; R(x - 0.86, 3.35, x + 0.86, 6.45, GR_LT); R(x - 0.68, 3.5, x + 0.68, 6.3, '#7a6c56'); R(x - 0.5, 3.65, x + 0.5, 6.1, '#1e1b18'); g.strokeStyle = '#6e6456'; g.lineWidth = 1; for (let i = -6; i <= 10; i++) { g.save(); g.beginPath(); g.rect(X(x - 0.5), Y(6.1), sx, 2.45 * sy); g.clip(); g.beginPath(); g.moveTo(X(x - 0.5 + i * 0.25), Y(3.65)); g.lineTo(X(x - 0.5 + i * 0.25 + 1.2), Y(6.1)); g.moveTo(X(x + 0.5 - i * 0.25), Y(3.65)); g.lineTo(X(x - 0.7 - i * 0.25), Y(6.1)); g.stroke(); g.restore(); }
+    swag(x - 0.8, x + 0.8, 7.1, 0.3); leaves(x - 0.7, 6.5, x + 0.7, 6.85, 14, 300 + sg); leaves(x - 0.6, 2.7, x + 0.6, 3.25, 14, 320 + sg); circ(x, 7.45, 0.18, '#d4c29e'); }
+  // the door and its frame: consoles with hanging fruit, a frieze of garlands and heads, a triangular pediment
+  R(-1.75, 0.9, 1.75, 6.5, GR_LT); R(-1.45, 0.9, 1.45, 6.25, GR_DK); R(-1.2, 0.9, 1.2, 6.0, '#3e2620'); R(-0.025, 0.9, 0.025, 6.0, '#180c08');
+  for (let y = 1.15; y < 5.6; y += 0.82) for (const x of [-1.08, -0.56, 0.1, 0.62]) { R(x, y, x + 0.46, y + 0.66, 'rgba(14,6,4,0.45)'); R(x + 0.08, y + 0.08, x + 0.4, y + 0.58, '#4c3027'); R(x + 0.08, y + 0.53, x + 0.4, y + 0.58, 'rgba(255,200,170,0.15)'); }
+  for (const sg of [-1, 1]) { leaves(sg * 1.98 - 0.25, 2.0, sg * 1.98 + 0.25, 4.6, 34, 400 + sg); volute(sg * 1.98, 4.95, 0.36); }
+  R(-1.9, 6.45, 1.9, 7.4, '#a08f72'); swag(-1.75, -0.2, 7.15, 0.38); swag(0.2, 1.75, 7.15, 0.38); for (const x of [-1.0, 1.0]) circ(x, 7.15, 0.2, '#ded0ae'); R(-0.18, 6.35, 0.18, 7.45, '#d6c5a1'); leaves(-0.18, 6.5, 0.18, 7.35, 8, 450);
+  R(-2.2, 7.45, 2.2, 7.7, '#d8c8a6'); tri(-2.2, 2.2, 7.7, 1.45, GR_LT); tri(-1.6, 1.6, 7.82, 0.95, '#8d7c60'); tri(-1.45, 1.45, 7.82, 0.82, '#a99877');
+  for (const sg of [-1, 1]) { R(sg * 4.8 - 0.85, 8.0, sg * 4.8 + 0.85, 8.5, '#9b8b6e'); circ(sg * 4.8, 8.25, 0.14, '#d8c8a6'); }
+  // the carved frieze and the main cornice
+  R(-6.5, 8.62, 6.5, 9.35, '#b6a585'); for (const [a, b] of [[-6.4, -2.2], [2.2, 6.4]]) leaves(a, 8.7, b, 9.25, 70, 500 + a); for (const sg of [-1, 1]) for (const c of GR_PIL) { circ(sg * c, 8.98, 0.24, '#ded0ae'); circ(sg * c, 8.98, 0.1, GR_DK); }
+  R(-6.5, 9.35, 6.5, GR_LOW, GR_LT); R(-6.5, 9.35, 6.5, 9.47, 'rgba(40,30,18,0.55)'); R(-6.5, 9.75, 6.5, 9.85, 'rgba(40,30,18,0.35)');
+  // the attic: panels with garlands, diamond panels over the pilasters, the little balustrade in the middle
+  R(-6.5, GR_LOW, 6.5, GR_BAL, '#ad9d80');
+  for (const sg of [-1, 1]) { sunk(sg * 4.85 - 1.1, 10.4, sg * 4.85 + 1.1, 11.55); swag(sg * 4.85 - 0.85, sg * 4.85 + 0.85, 11.3, 0.45); const x = sg * 2.65; sunk(x - 0.7, 10.4, x + 0.7, 11.55); g.strokeStyle = '#dccba8'; g.lineWidth = Math.max(1, sx * 0.08); g.beginPath(); g.moveTo(X(x - 0.55), Y(10.98)); g.lineTo(X(x), Y(11.45)); g.lineTo(X(x + 0.55), Y(10.98)); g.lineTo(X(x), Y(10.5)); g.closePath(); g.stroke(); circ(x, 10.98, 0.13, '#dccba8'); }
+  R(-1.55, GR_LOW, 1.55, GR_BAL, '#3a3128'); for (let x = -1.3; x <= 1.31; x += 0.37) { R(x - 0.075, 10.35, x + 0.075, 11.65, GR_LT); circ(x, 10.85, 0.14, GR_LT); }
+  R(-1.55, GR_LOW, 1.55, 10.38, GR_LT); R(-1.55, 11.6, 1.55, GR_BAL, GR_LT); R(-6.5, GR_BAL - 0.18, 6.5, GR_BAL + 0.1, '#d3c3a1');
+  // the upper order: the arched window with its fan of glazing bars, paired pilasters with shell capitals and drops, the scrolled wings
+  R(-5.4, GR_BAL + 0.1, 5.4, GR_UPC, GR_ST); noiseDots(g, w, Y(GR_BAL), w * 70, 2, 7403, ['rgba(60,48,34,0.16)', 'rgba(228,214,184,0.12)']);
+  for (const sg of [-1, 1]) { for (const c of GR_UPIL) { const x = sg * c; R(x - 0.31, GR_BAL + 0.1, x + 0.31, 16.1, GR_LT); sunk(x - 0.17, 12.3, x + 0.17, 14.2); leaves(x - 0.25, 14.3, x + 0.25, 15.1, 14, 600 + c * 9 + sg); circ(x, 15.62, 0.33, '#d8c8a6'); for (let a = -2; a <= 2; a++) { g.strokeStyle = 'rgba(70,54,32,0.7)'; g.lineWidth = 1; g.beginPath(); g.moveTo(X(x), Y(15.35)); g.lineTo(X(x + a * 0.14), Y(15.9)); g.stroke(); } } volute(sg * 4.35, 12.95, 0.78); leaves(sg * 3.9 - 0.35, 13.9, sg * 3.9 + 0.35, 15.2, 18, 650 + sg); }
+  arch(0, GR_BAL, 16.35, 3.5, GR_LT); arch(0, GR_BAL, 16.1, 3.0, '#8a7a5e'); arch(0, GR_BAL, 15.85, 2.5, '#5a4c3a'); arch(0, GR_BAL + 0.1, 15.65, 2.15, '#56656e');
+  { const gr_ = g.createLinearGradient(0, Y(15.6), 0, Y(12)); gr_.addColorStop(0, 'rgba(190,205,215,0.5)'); gr_.addColorStop(1, 'rgba(190,205,215,0.05)'); arch(0, GR_BAL + 0.1, 15.65, 2.15, gr_); }
+  g.strokeStyle = '#3a3026'; g.lineWidth = Math.max(1, sx * 0.07); for (const x of [-0.45, 0.45]) R(x - 0.035, GR_BAL, x + 0.035, 14.55, '#3a3026'); R(-1.075, 14.5, 1.075, 14.6, '#3a3026'); for (let i = 1; i < 6; i++) { const a = i / 6 * PI; g.beginPath(); g.moveTo(X(0), Y(14.55)); g.lineTo(X(Math.cos(a) * 1.05), Y(14.55 + Math.sin(a) * 1.05)); g.stroke(); } g.beginPath(); g.arc(X(0), Y(14.55), 0.55 * sx, PI, 2 * PI); g.stroke();
+  R(-0.15, 16.0, 0.15, 16.5, '#ddceac');
+  R(-3.7, 16.1, 3.7, GR_UPC, GR_LT); R(-3.7, 16.1, 3.7, 16.2, 'rgba(40,30,18,0.5)'); R(-3.7, 16.5, 3.7, 16.58, 'rgba(40,30,18,0.35)');
+  // the broken curved pediment, the two scrolls and the coat of arms between them
+  R(-3.9, GR_UPC, 3.9, GR_TOP, GR_ST);
+  for (const sg of [-1, 1]) { g.strokeStyle = GR_LT; g.lineWidth = 0.42 * sx; g.beginPath(); g.moveTo(X(sg * 3.75), Y(17.05)); g.quadraticCurveTo(X(sg * 2.9), Y(18.45), X(sg * 1.35), Y(18.55)); g.stroke(); volute(sg * 1.15, 18.25, 0.48); leaves(sg * 2.2 - 0.6, 17.1, sg * 2.2 + 0.6, 17.6, 16, 700 + sg); }
+  circ(0, 18.05, 0.8, '#d8c8a6'); circ(0, 18.05, 0.55, '#a8977a'); leaves(-0.75, 17.15, 0.75, 18.9, 34, 750); g.fillStyle = '#ded0ae'; g.beginPath(); g.ellipse(X(0), Y(18.05), 0.36 * sx, 0.5 * sy, 0, 0, 2 * PI); g.fill();
+  shade(GR_LOW - 0.85, 0.9); shade(GR_UPC - 0.8, 0.7); streaks(g, w, h, 44, 7402, 0.17, 120, '44,34,24'); foot();
+}
+// the plain cream flank of the block the church stands in: three floors of small windows
+function paintGrSide(g, w, h) {
+  const sx = w / 4.5, sy = h / GR_SIDE, R = (x0, y0, x1, y1, c) => { g.fillStyle = c; g.fillRect(x0 * sx, h - y1 * sy, (x1 - x0) * sx, (y1 - y0) * sy); };
+  g.fillStyle = '#d6c4a2'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, w * h / 60, 2.5, 7431, ['rgba(130,105,70,0.1)', 'rgba(255,248,230,0.1)']);
+  R(0, 0, 4.5, 2.2, 'rgba(105,92,72,0.45)');
+  for (const y of [6.2, 11.4, 16.4]) { R(1.55, y - 0.15, 2.95, y + 2.05, '#bda882'); R(1.75, y, 2.75, y + 1.85, '#4a4238'); R(2.22, y, 2.28, y + 1.85, '#8d7f66'); }
+  R(0, GR_SIDE - 0.4, 4.5, GR_SIDE, '#bca780'); streaks(g, w, h, 12, 7432, 0.13, 110, '80,62,42');
 }
 const GR = {
   id: 'w926581675', name: 'Chiesa di Santa Maria della Grotta al Cassaro', k: 'gr',
   p: [-337, 139.9, -317.1, 170.3, -305.6, 164.3, -322.7, 133.3],
-  O: [-311.4, 167.3], N: [0.463, 0.887], hw: GR_HW, eave: 16.0, FH: GR_TOP, tex: [256, 384], paint: paintGR, seed: 7421, wall: '#bfae90', stone: '#9a8c72', trim: '#b0a288',
-  roof: { w: 11.4, z0: -1.0, z1: -34, rise: 2.6 },
+  O: [-311.4, 167.3], N: [0.463, 0.887], hw: GR_HW, eave: GR_SIDE, FH: GR_TOP, tex: [320, 448], paint: paintGR, side: paintGrSide, back: GR_BACK, seed: 7421, wall: '#d6c4a2', stone: '#9a8c72', trim: '#c4b496',
   shape(s) {
-    s.moveTo(-6.5, 0); s.lineTo(6.5, 0); s.lineTo(6.5, GR_LOW); s.lineTo(6.1, GR_LOW); s.lineTo(6.1, GR_BAL); s.bezierCurveTo(5.9, 12.6, 5.5, 14.4, 5.4, GR_UPC);
-    s.quadraticCurveTo(4.0, 18.6, 1.4, 18.5); s.lineTo(1.4, GR_TOP - 0.4); s.lineTo(-1.4, GR_TOP - 0.4); s.lineTo(-1.4, 18.5); s.quadraticCurveTo(-4.0, 18.6, -5.4, GR_UPC);
-    s.bezierCurveTo(-5.5, 14.4, -5.9, 12.6, -6.1, GR_BAL); s.lineTo(-6.1, GR_LOW); s.lineTo(-6.5, GR_LOW); s.lineTo(-6.5, 0);
+    s.moveTo(-6.5, 0); s.lineTo(6.5, 0); s.lineTo(6.5, GR_BAL + 0.1); s.lineTo(5.35, GR_BAL + 0.1); s.bezierCurveTo(5.45, 14.2, 3.9, 13.4, 3.75, 15.6); s.lineTo(3.75, GR_UPC);
+    s.lineTo(3.95, GR_UPC); s.quadraticCurveTo(3.0, 18.75, 1.35, 18.8); s.quadraticCurveTo(0.8, 19.1, 0.55, 18.75); s.lineTo(0, GR_TOP); s.lineTo(-0.55, 18.75); s.quadraticCurveTo(-0.8, 19.1, -1.35, 18.8); s.quadraticCurveTo(-3.0, 18.75, -3.95, GR_UPC);
+    s.lineTo(-3.75, GR_UPC); s.lineTo(-3.75, 15.6); s.bezierCurveTo(-3.9, 13.4, -5.45, 14.2, -5.35, GR_BAL + 0.1); s.lineTo(-6.5, GR_BAL + 0.1); s.lineTo(-6.5, 0);
   },
   trims({ F, at }) {
-    bx('flat', F, -6.7, 6.7, GR_LOW - 1.5, GR_LOW + 0.05, -1.35, 0.6, { c: '#b0a288', noao: true });
-    bx('flat', F, -5.6, 5.6, GR_UPC - 0.7, GR_UPC + 0.05, -1.35, 0.55, { c: '#b0a288', noao: true });
+    // everything is set from the face of the front (at() already stands GR_BACK inside the outline); nothing low down comes further out than that
+    const LT = '#b3a387', MID = '#968669', c0 = { noao: true };
+    const slab = (x0, x1, y0, y1, d, c = LT) => bx('flat', at(0, 0, 0), x0, x1, y0, y1, -0.1, d, { c, ...c0 });
+    const poly = (pts, d, c, x = 0, y = 0, z = -0.05) => { const s = new THREE.Shape(); pts(s); extrude('flat', s, d, { M: at(x, y, z), c, cs: 4, ...c0 }); };
+    const disc = (x, y, r, d, c, z = -0.05) => poly(s => s.absarc(0, 0, r, 0, 2 * PI, false), d, c, x, y, z);
+    const scroll = (x, y, r, d) => { disc(x, y, r, d, MID); poly(s => { s.absarc(0, 0, r * 0.74, 0, 2 * PI, false); const h = new THREE.Path(); h.absarc(0, 0, r * 0.46, 0, 2 * PI, true); s.holes.push(h); }, 0.07, LT, x, y, d - 0.05); knob(x, y, r * 0.24, d + 0.02, LT); };
+    const swag = (x, y, hw_, drop, d = 0.15) => poly(s => { s.moveTo(-hw_, 0); s.quadraticCurveTo(0, -2 * drop, hw_, 0); s.quadraticCurveTo(0, -drop * 0.6, -hw_, 0); }, d, '#a39477', x, y);
+    const knob = (x, y, r, d, c = '#a89879') => sphere('flat', r * 0.88, { M: at(x, y, d), seg: 4, kz: 0.6, c, noao: true });
     for (const sg of [-1, 1]) {
-      for (const c of [3.25, 5.0]) bx('flat', F, sg * c - 0.5, sg * c + 0.5, 1.5, GR_LOW - 1.5, -0.05, 0.3, { c: '#b0a288', noao: true });
-      for (const c of [3.4, 4.7]) bx('flat', F, sg * c - 0.45, sg * c + 0.45, GR_BAL, GR_UPC - 0.9, -0.05, 0.22, { c: '#b0a288', noao: true });
+      for (const c of GR_PIL) { const x = sg * c; slab(x - 0.47, x + 0.47, 0, 1.6, 0.4, MID); slab(x - 0.52, x + 0.52, 1.6, 1.82, 0.46); slab(x - 0.36, x + 0.36, 1.82, 7.85, 0.22); slab(x - 0.17, x + 0.17, 2.15, 7.55, 0.3, MID); slab(x - 0.41, x + 0.41, 7.85, 8.45, 0.34, MID); slab(x - 0.5, x + 0.5, 8.45, 8.66, 0.44); for (const k of [-0.22, 0.22]) knob(x + k, 8.18, 0.19, 0.36); knob(x, 8.98, 0.22, 0.14); }
+      for (const [a, b] of [[2.14, 3.98], [5.64, 6.5]]) { slab(sg > 0 ? a : -b, sg > 0 ? b : -a, GR_LOW - 0.55, GR_LOW + 0.04, 0.55); slab(sg > 0 ? a + 0.06 : -b + 0.06, sg > 0 ? b - 0.06 : -a - 0.06, GR_BAL - 0.16, GR_BAL + 0.12, 0.34); }
+      // side windows: the frame, its sill on brackets, the scrolls and the garland over it
+      const w = sg * 4.8; for (const s2 of [-0.76, 0.76]) slab(w + s2 - 0.11, w + s2 + 0.11, 3.35, 6.45, 0.18); slab(w - 0.98, w + 0.98, 6.3, 6.56, 0.28); slab(w - 0.98, w + 0.98, 3.22, 3.46, 0.3); swag(w, 3.2, 0.7, 0.34); swag(w, 7.15, 0.75, 0.3); for (const s2 of [-0.66, 0.66]) scroll(w + s2, 6.78, 0.22, 0.2); knob(w, 7.45, 0.2, 0.08); knob(w, 2.75, 0.17, 0.06);
+      // the door: jambs, the consoles with their drops
+      slab(sg > 0 ? 1.28 : -1.62, sg > 0 ? 1.62 : -1.28, 0.9, 6.45, 0.24); scroll(sg * 1.98, 4.95, 0.36, 0.3); poly(s => { s.moveTo(-0.24, 0); s.quadraticCurveTo(-0.42, -1.4, 0.0, -2.9); s.quadraticCurveTo(0.34, -1.4, 0.24, 0); s.lineTo(-0.24, 0); }, 0.14, MID, sg * 1.98, 4.7); for (let i = 0; i < 3; i++) knob(sg * 1.98, 4.25 - i * 0.62, 0.17 - i * 0.03, 0.1); scroll(sg * 1.72, 6.2, 0.2, 0.26);
+      swag(sg * 0.98, 7.25, 0.78, 0.4, 0.2); knob(sg * 0.98, 7.2, 0.2, 0.22);
+      // attic: garlands and the diamond panels
+      swag(sg * 4.85, 11.35, 0.85, 0.48); knob(sg * 4.0, 11.35, 0.15, 0.1); knob(sg * 5.7, 11.35, 0.15, 0.1); bx('flat', mul(at(sg * 2.65, 10.98, 0), new THREE.Matrix4().makeRotationZ(PI / 4)), -0.34, 0.34, -0.34, 0.34, -0.1, 0.12, { c: MID, ...c0 }); knob(sg * 2.65, 10.98, 0.17, 0.14);
+      // upper order: pilasters with shells and drops, the scrolled wings
+      for (const c of GR_UPIL) { const x = sg * c; slab(x - 0.31, x + 0.31, GR_BAL + 0.1, 15.2, 0.2); slab(x - 0.37, x + 0.37, 15.2, 15.35, 0.34); disc(x, 15.66, 0.34, 0.36, MID); knob(x, 15.5, 0.16, 0.36, LT); knob(x, 14.75, 0.17, 0.22); knob(x, 14.35, 0.12, 0.22); }
+      poly(s => { s.moveTo(sg * 3.4, GR_BAL + 0.1); s.lineTo(sg * 5.3, GR_BAL + 0.1); s.bezierCurveTo(sg * 5.35, 14.0, sg * 3.9, 13.4, sg * 3.72, 15.4); s.lineTo(sg * 3.4, 15.4); s.lineTo(sg * 3.4, GR_BAL + 0.1); }, 0.2, MID); scroll(sg * 4.42, 12.95, 0.76, 0.3);
+      // top: the curved halves of the broken pediment and their scrolls
+      poly(s => { s.moveTo(sg * 3.98, GR_UPC); s.quadraticCurveTo(sg * 3.0, 18.78, sg * 1.35, 18.82); s.lineTo(sg * 1.35, 18.38); s.quadraticCurveTo(sg * 2.75, 18.3, sg * 3.55, GR_UPC); s.lineTo(sg * 3.98, GR_UPC); }, 0.5, LT);
+      scroll(sg * 1.15, 18.28, 0.46, 0.58);
+      slab(sg > 0 ? 2.0 : -3.4, sg > 0 ? 3.4 : -2.0, 16.1, 16.6, 0.4);
     }
-    bx('flat', F, -2.65, 2.65, 6.2, 6.4, -0.05, 0.4, { c: '#9b8d76', noao: true }); jambs(F, 1.6, 2.5, 1.5, 6.2, 0.22, '#b0a288');
-    rake(F, 3.1, 7.4, 1.75, 0.35, 0.2, '#b0a288');
-    balus(at(0, GR_LOW, 0.2), 3.8, 1.0);
-    for (const sg of [-1, 1]) { cyl('flat', 0.5, 0.5, 0.5, 8, { M: mul(at(sg * 1.7, 18.2, -0.6), new THREE.Matrix4().makeRotationX(PI / 2)), c: '#b0a288' }); }
-    sphere('flat', 0.3, { M: at(0, GR_TOP - 0.1, -0.7), seg: 6, c: '#b0a288' });
+    slab(-6.55, 6.55, GR_LOW - 0.42, GR_LOW - 0.12, 0.34); slab(-6.55, 6.55, GR_LOW - 0.12, GR_LOW + 0.04, 0.46);
+    slab(-6.55, 6.55, 8.6, 8.72, 0.26, MID); slab(-3.8, 3.8, 16.58, GR_UPC + 0.05, 0.5);
+    // door lintel, keystone, the deep triangular pediment
+    slab(-1.9, 1.9, 6.2, 6.45, 0.34); slab(-0.2, 0.2, 6.2, 7.45, 0.3); knob(0, 6.95, 0.24, 0.3);
+    slab(-2.35, 2.35, 7.46, 7.72, 0.55); poly(s => { s.moveTo(-2.35, 0); s.lineTo(0, 1.55); s.lineTo(2.35, 0); s.lineTo(1.75, 0); s.lineTo(0, 1.14); s.lineTo(-1.75, 0); s.lineTo(-2.35, 0); }, 0.58, LT, 0, 7.68);
+    // the balustrade before the window, the arch of the window on its imposts
+    balus(at(0, 10.35, 0.16), 2.95, 1.3, { c: '#b9aa8c' }); slab(-1.62, 1.62, 11.6, 11.84, 0.3); slab(-1.62, 1.62, GR_LOW + 0.02, 10.36, 0.3);
+    poly(s => { s.moveTo(1.62, 0); s.absarc(0, 0, 1.62, 0, PI, false); s.lineTo(-1.2, 0); s.absarc(0, 0, 1.2, PI, 0, true); s.lineTo(1.62, 0); }, 0.3, LT, 0, 14.6);
+    for (const sg of [-1, 1]) { slab(sg * 1.41 - 0.21, sg * 1.41 + 0.21, GR_BAL + 0.1, 14.45, 0.22, MID); slab(sg * 1.41 - 0.3, sg * 1.41 + 0.3, 14.42, 14.64, 0.36); }
+    slab(-0.17, 0.17, 15.9, 16.55, 0.44, MID);
+    // the coat of arms
+    disc(0, 18.05, 0.78, 0.3, MID); sphere('flat', 0.48, { M: at(0, 18.05, 0.25), seg: 8, ky: 1.3, kz: 0.45, c: LT, noao: true }); for (const [x, y] of [[-0.55, 18.7], [0.55, 18.7], [-0.62, 17.45], [0.62, 17.45], [0, 18.95], [0, 17.25]]) knob(x, y, 0.2, 0.28);
+    // the iron rail on the roof of the block behind
+    panel('rail', 11.0, 1.0, { M: at(0, GR_SIDE + 0.12, -1.3), uvk: [11, 1], c: '#6c675e' });
   }
 };
 

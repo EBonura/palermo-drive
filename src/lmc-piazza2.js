@@ -4,11 +4,10 @@
 //     "Palermo-AP-p1070702.jpg" (frontal at street level, centre bay). Read: a 22.4 m wide front of cream plaster and golden ochre stone, four piers (two wide end piers
 //     with a green rosette cap, two inner piers taller with a garland cap), two side panels each with one pedimented window, a central bay with an arched portal (archivolt, two
 //     flanking pilasters), two tall windows beside it, a main cornice with a red frieze lettered TEATRO NAZIONALE BIONDO 1914, a balustrade with two statues, above it a pedimented
-//     group of three windows, then a stepped gable wall with a red rake band, two round windows in stepped panels, and a small block on the ridge. Heights relative to the width
-//     (22.4 m): main cornice 0.40, inner pier caps 0.50, eaves of the gable wall 0.66, ridge 0.77, ridge block 0.84. The roof behind is not visible in any photo (assumed tiles).
-//   Chiosco Ribaudo (w204272307, OSM name "chiosco Ribaudo"): "Chiosco Ribaudo Palermo1.jpg" (front and chamfered side). Read: a small Liberty kiosk, grey marble plinth,
-//     cream faces with a tall door under an ogee arch and a rolling shutter, narrow mosaic panels on the chamfered corners, a big rounded canopy with a coffered underside, a pierced
-//     balustrade on top between two urn posts, the name RIBAUDO over the door. Which long side faces which street is not visible in the photos.
+//     group of three windows, then a stepped gable wall with a red rake band, two round windows in stepped panels, and a small block on the ridge carrying an open steel frame with four discs;
+//     wrought iron lamps on the four piers, flower boxes on the terraces, posters and a lower board either side of the portal, the name over the glazed door. Heights relative to the width
+//     (22.4 m): main cornice 0.40, inner pier caps 0.50, eaves of the gable wall 0.66, ridge 0.77, ridge block 0.84. The roof is seen only from the air (Regione Siciliana
+//     orthophoto: faded terracotta tiles, pale piers along both long eaves). The flanks are not visible and stay plain. The pictures on the posters are not reproduced.
 //   Corner palazzo at the tip of the block w204272306 (found by position: the kiosk stands against it): "Piazza Ruggero Settimo - Palermo - panoramio - kajikawa (3).jpg" (2002, grey-green,
 //     the corner seen from Piazza Castelnuovo) and "Chiosco Ribaudo Palermo1.jpg" (recent, cream with a grey rusticated base). Read: a grey stone shop base of two levels, then four floors of
 //     shuttered windows, arched windows with balconies on the two middle floors, Greek-key railings and a Greek-key balcony shelf over the base, a cornice and a roof terrace. Bay counts
@@ -16,7 +15,7 @@
 //     off the generic wall; the rest of the block stays generic.
 // Not identified from photos and therefore not built: the other palazzi around the two squares (see the report).
 import * as THREE from 'three';
-import { PI, bx, sphere, extrude, prism, begin, end, defMat, mul, tr, frame, groundY, initShared, noiseDots, streaks, groundRange, gable, statue, panel, balus, paintAshlar } from './lmc-kit.js';
+import { PI, bx, box, cyl, cone, extrude, begin, end, defMat, mul, tr, frame, groundY, initShared, noiseDots, streaks, groundRange, gable, statue, panel, balus, paintAshlar } from './lmc-kit.js';
 
 // ------------------------------------------------------------------------------------------------
 // shared: a frame from a world point and an outward normal; local +z out of the face, local +x to the viewer's right
@@ -55,8 +54,15 @@ function paintKurFront(g, w, h) {
     g.fillStyle = OCHL; g.beginPath(); g.moveTo(X(wx - 1.25), Y(4.9)); g.lineTo(X(wx), Y(5.9)); g.lineTo(X(wx + 1.25), Y(4.9)); g.fill(); g.fillStyle = CREAM; g.beginPath(); g.moveTo(X(wx - 0.8), Y(5.0)); g.lineTo(X(wx), Y(5.6)); g.lineTo(X(wx + 0.8), Y(5.0)); g.fill();
     R(wx - 1.1, 1.3, wx + 1.1, 1.55, OCHL);
     // tall window beside the portal
-    const tx = s * 3.15; R(tx - 0.7, 2.8, tx + 0.7, 7.5, DARKW); R(tx - 0.72, 2.8, tx - 0.62, 7.5, OCH); R(tx + 0.62, 2.8, tx + 0.72, 7.5, OCH);
-    for (let y = 3.6; y < 7.3; y += 1.2) R(tx - 0.7, y, tx + 0.7, y + 0.06, '#4a515b');
+    const tx = s * 3.15; R(tx - 0.7, 4.8, tx + 0.7, 7.5, DARKW); R(tx - 0.72, 4.8, tx - 0.62, 7.5, OCH); R(tx + 0.62, 4.8, tx + 0.72, 7.5, OCH);
+    for (let y = 5.7; y < 7.3; y += 0.9) R(tx - 0.7, y, tx + 0.7, y + 0.06, '#4a515b');
+    for (const dx of [-0.23, 0.23]) R(tx + dx - 0.025, 4.8, tx + dx + 0.025, 7.5, '#4a515b');
+    // a framed poster (a yellow sheet, a figure shape, the name on a white band) and a smaller board under it
+    const px_ = s * 3.0, word = (t, y, px, c) => { g.fillStyle = c; g.font = 'bold ' + Math.round(px * sy) + 'px sans-serif'; g.textAlign = 'center'; g.fillText(t, X(px_), Y(y), 1.1 * sx); };
+    R(px_ - 0.68, 1.9, px_ + 0.68, 4.35, '#2c3036'); R(px_ - 0.6, 1.98, px_ + 0.6, 4.27, '#e2b23c');
+    g.fillStyle = s < 0 ? '#c4607a' : '#45689a'; g.beginPath(); g.ellipse(X(px_), Y(3.35), 0.3 * sx, 0.55 * sy, s * 0.25, 0, 2 * PI); g.fill(); g.fillStyle = '#c99a7c'; g.beginPath(); g.arc(X(px_ + s * 0.1), Y(3.95), 0.2 * sx, 0, 2 * PI); g.fill();
+    R(px_ - 0.6, 2.35, px_ + 0.6, 2.85, '#f1ead8'); word('KURSAAL', 2.48, 0.3, '#8e2c24');
+    R(px_ - 0.68, 0.98, px_ + 0.68, 1.72, '#2c3036'); R(px_ - 0.6, 1.05, px_ + 0.6, 1.65, '#ecdfae'); word('SALA BINGO', 1.22, 0.24, '#2f3a52');
     // round window in a stepped panel on the gable wall
     const rx = s * 6.5, ry = 12.4; R(rx - 1.3, ry - 1.3, rx + 1.3, ry + 1.3, '#d3b684'); R(rx - 0.95, ry - 0.95, rx + 0.95, ry + 0.95, CREAM); g.fillStyle = OCH; g.beginPath(); g.arc(X(rx), Y(ry), 0.78 * sx, 0, 2 * PI); g.fill(); g.fillStyle = DARKW; g.beginPath(); g.arc(X(rx), Y(ry), 0.58 * sx, 0, 2 * PI); g.fill();
     // portal columns
@@ -64,7 +70,12 @@ function paintKurFront(g, w, h) {
   }
   // portal
   const arch = (x, y0, y1, ww, c) => { const r = ww / 2; g.fillStyle = c; g.beginPath(); g.moveTo(X(x - r), Y(y0)); g.lineTo(X(x - r), Y(y1 - r)); g.arc(X(x), Y(y1 - r), r * sx, PI, 0); g.lineTo(X(x + r), Y(y0)); g.fill(); };
-  arch(0, 1.0, 7.4, 4.0, OCH); arch(0, 1.0, 7.0, 3.1, '#1c1b1c'); R(-1.55, 1.0, 1.55, 4.2, '#25201c'); for (let y = 1.6; y < 4.2; y += 0.8) R(-1.5, y, 1.5, y + 0.04, 'rgba(210,180,120,0.35)');
+  arch(0, 1.0, 7.4, 4.0, OCH); arch(0, 1.0, 7.0, 3.1, '#c39a62'); arch(0, 1.0, 6.82, 2.75, '#232a31');
+  g.strokeStyle = '#6d7782'; g.lineWidth = 0.05 * sx; for (const a of [0.25, 0.5, 0.75]) { g.beginPath(); g.moveTo(X(0), Y(5.45)); g.lineTo(X(-Math.cos(a * PI) * 1.37), Y(5.45 + Math.sin(a * PI) * 1.37)); g.stroke(); }
+  g.beginPath(); g.arc(X(0), Y(5.45), 0.7 * sx, PI, 0); g.stroke(); R(-1.38, 5.4, 1.38, 5.48, '#6d7782');
+  R(-1.38, 4.45, 1.38, 5.3, '#3b4046'); g.fillStyle = '#eef0ee'; g.font = 'italic ' + Math.round(0.62 * sy) + 'px Georgia, serif'; g.textAlign = 'center'; g.fillText('Kursaal', X(-0.3), Y(4.66), 1.7 * sx); R(0.78, 4.6, 1.18, 5.15, '#d8dce2'); R(0.84, 4.72, 1.12, 5.0, '#b23b30');
+  R(-1.38, 3.75, 1.38, 4.4, '#15171a'); R(-1.38, 1.0, 1.38, 3.72, '#1e2226'); for (const x of [-1.34, -0.7, -0.02, 0.66, 1.3]) R(x, 1.0, x + 0.05, 3.7, '#59606a'); R(-1.38, 3.0, 1.38, 3.06, '#59606a');
+  for (const x of [-0.5, 0.18]) R(x, 1.3, x + 0.34, 2.9, 'rgba(150,175,190,0.16)');
   R(-0.5, 7.4, 0.5, 8.0, OCHL); g.fillStyle = '#6a2c20'; g.font = Math.round(0.4 * sy) + 'px serif'; g.textAlign = 'center'; g.fillText('1914', X(0), Y(7.9));
   // main cornice, red frieze with the name
   R(-KW / 2, 7.8, KW / 2, 9.0, CREAM); R(-KW / 2, 8.0, KW / 2, 8.8, RED); R(-KW / 2, 8.0, KW / 2, 8.08, '#6a2c20'); R(-KW / 2, 8.8, KW / 2, 9.0, OCHL); R(-KW / 2, 7.8, KW / 2, 8.0, OCHL);
@@ -97,13 +108,16 @@ function buildKursaal() {
   const F = frame(KF.O[0], y0, KF.O[1], KF.N[0], KF.N[1]), at = (x, y, z) => mul(F, tr(x, y, z));
   defMat('pwKurFront', 512, 460, [KW, KH], paintKurFront);
   defMat('pwKurWall', 128, 128, [5, 5], paintKurWall);
+  defMat('pwKurRoof', 64, 64, [2.4, 2.4], (g, w, h) => { g.fillStyle = '#c09a82'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 150, 2.2, 7131, ['rgba(150,90,60,0.20)', 'rgba(232,210,180,0.24)', 'rgba(90,80,66,0.12)']); g.fillStyle = 'rgba(100,60,40,0.22)'; for (let y = 3; y < h; y += 8) g.fillRect(0, y, w, 1); });
   defMat('pwKurStone', 128, 128, [2.2, 2.2], (g, w, h) => paintAshlar(g, w, h, 2.2, 2.2, 0.7, 1.1, '#d6ad70', '#a07a46', 7121, 1.5, 0.05));
   begin(y0);
   const lo = Math.min(gr.lo, y0) - y0 - 1.5, hw = KW / 2;
   // body: the lower block over the whole footprint, the hall above it, the gable roof (roof not visible in any photo)
   bx('pwKurWall', F, -hw, hw, lo, KCORN, -KD, -0.3);
   bx('pwKurWall', F, -KHALL, KHALL, KCORN, KEAVE, -KD, -0.3);
-  gable('tile', 'pwKurWall', at(0, 0, -KD / 2), KHALL * 2, KD - 0.1, KEAVE, KRIDGE - KEAVE, { ov: 0.3, c: '#b8744f', wc: '#dfcfa6' });
+  gable('pwKurRoof', 'pwKurWall', at(0, 0, -KD / 2 - 0.15), KHALL * 2, KD - 0.9, KEAVE, KRIDGE - KEAVE, { ov: 0.3, wc: '#dfcfa6' });   // (its front edge stops behind the gable wall, whose red rake band shows)
+  bx('flat', F, -0.22, 0.22, KRIDGE + 0.08, KRIDGE + 0.26, -KD + 0.3, -0.6, { c: '#d6c3ac', noao: true });   // the pale ridge
+  for (const sg of [-1, 1]) for (let z = -5; z > -KD + 1; z -= 5.4) bx('flat', F, sg * (KHALL - 0.15), sg * (KHALL + 0.45), KCORN, KEAVE + 0.45, z - 0.35, z + 0.35, { c: '#e4d8bc', noao: true });   // the piers along the long sides (orthophoto)
   // the painted front, one extruded shape (end towers, stepped gable wall, ridge block)
   const s = new THREE.Shape();
   s.moveTo(-hw, 0); s.lineTo(hw, 0); s.lineTo(hw, 15.3); s.lineTo(9.6, 15.3); s.lineTo(9.6, KEAVE); s.lineTo(1.9, KRIDGE); s.lineTo(1.9, KTOP); s.lineTo(-1.9, KTOP); s.lineTo(-1.9, KRIDGE);
@@ -127,76 +141,28 @@ function buildKursaal() {
   st(-3.75, 3.75, 9.0, 9.1, 0.3, '#d8c79c');
   balus(at(0, 9.1, 0.15), 7.5, 0.85, { noao: true });
   st(-2.4, 2.4, 13.5, 13.8, 0.26, OCHL);
+  // the open steel frame with four discs over the ridge block
+  const IRON = { c: '#4a4c50', noao: true };
+  for (const y of [KTOP + 0.5, KTOP + 1.2]) bx('flat', F, -3.0, 3.0, y, y + 0.08, -0.34, -0.26, IRON);
+  for (const x of [-2.96, -1.5, 0, 1.5, 2.96]) bx('flat', F, x - 0.04, x + 0.04, Math.abs(x) > 2 ? KTOP + 0.5 : KTOP, KTOP + 1.28, -0.34, -0.26, IRON);
+  for (const x of [-2.1, -0.7, 0.7, 2.1]) cyl('flat', 0.4, 0.4, 0.07, 10, { M: F, p: [x, KTOP + 0.72, -0.24], rx: PI / 2, c: '#e8e6de', noao: true });
+  // the wrought iron lamps on the four piers: an arm, a cage and a bell shade with its globe
+  for (const x of [-10.05, -4.68, 4.68, 10.05]) {
+    box('flat', 0.07, 0.07, 0.62, { M: F, p: [x, 7.35, 0.6], ...IRON });
+    for (const dy of [6.95, 7.55]) box('flat', 0.62, 0.06, 0.08, { M: F, p: [x, dy, 0.38], ...IRON });
+    for (const dx of [-0.3, 0, 0.3]) box('flat', 0.05, 0.66, 0.06, { M: F, p: [x + dx, 6.95, 0.38], ...IRON });
+    box('flat', 0.04, 0.8, 0.04, { M: F, p: [x, 6.58, 0.88], ...IRON });
+    cone('flat', 0.27, 0.32, 8, { M: F, p: [x, 6.28, 0.88], ...IRON }); box('flat', 0.2, 0.16, 0.2, { M: F, p: [x, 6.14, 0.88], c: '#f2eedc', noao: true });
+  }
+  // flower boxes along the two terraces, and the small merlons of the middle parapet
+  for (const x of [-8.1, -7.0, -5.9, 5.9, 7.0, 8.1]) bx('flat', F, x - 0.38, x + 0.38, 9.15, 9.5, -0.02, 0.34, { c: '#a8624a', noao: true });
+  for (const x of [-1.05, 0, 1.05]) bx('flat', F, x - 0.38, x + 0.38, 9.95, 10.22, -0.04, 0.24, { c: '#a8624a', noao: true });
+  for (let x = -3.5; x <= 3.51; x += 0.7) if (Math.abs(Math.abs(x) - 2.1) > 0.45 && Math.abs(x) > 1.5) bx('flat', F, x - 0.14, x + 0.14, 9.93, 10.3, 0.05, 0.27, { c: '#d8c79c', noao: true });
   const o = end('Kursaal Biondo');
   o.userData.solids = [[KP, null, y0 + KRIDGE]];
   return o;
 }
 export const KURSAAL = { name: 'Kursaal Biondo', x: -385, z: -961, radius: 36, skipIds: ['w215618518'], build: buildKursaal };
-
-// ================================================================================================
-// CHIOSCO RIBAUDO
-// ================================================================================================
-const RP = [-487.2, -943.8, -482.7, -946.1, -481, -942.6, -485.5, -940.4];
-const RC = [(RP[0] + RP[2] + RP[4] + RP[6]) / 4, (RP[1] + RP[3] + RP[5] + RP[7]) / 4];
-const RF = mk(RC, [-0.455, -0.89]);   // local x along the 5.05 m side, +z out of the 3.9 m wide side facing north-west
-
-function paintRib(g, w, h) {
-  // left half: a door face (ogee arch, rolling shutter); right half: a chamfer face (mosaic panel, narrow window)
-  g.fillStyle = '#eadfc4'; g.fillRect(0, 0, w, h);
-  noiseDots(g, w, h, w * h / 50, 1.5, 7201, ['rgba(150,110,60,0.08)', 'rgba(255,248,225,0.12)']);
-  const hw = w / 2, k = h / 2.5;   // 2.5 m tall faces, 1.9 m wide door face
-  g.fillStyle = '#c9b48a'; g.fillRect(0, 0, hw, 0.12 * k);
-  // door: ochre frame, ogee top, dark shutter with slats
-  g.fillStyle = '#c8ab72'; g.beginPath(); g.moveTo(hw * 0.2, h); g.lineTo(hw * 0.2, h * 0.34); g.quadraticCurveTo(hw * 0.2, h * 0.12, hw * 0.5, h * 0.04); g.quadraticCurveTo(hw * 0.8, h * 0.12, hw * 0.8, h * 0.34); g.lineTo(hw * 0.8, h); g.fill();
-  g.fillStyle = '#2f3034'; g.beginPath(); g.moveTo(hw * 0.27, h); g.lineTo(hw * 0.27, h * 0.38); g.quadraticCurveTo(hw * 0.27, h * 0.2, hw * 0.5, h * 0.12); g.quadraticCurveTo(hw * 0.73, h * 0.2, hw * 0.73, h * 0.38); g.lineTo(hw * 0.73, h); g.fill();
-  g.fillStyle = 'rgba(255,255,255,0.08)'; for (let y = h * 0.5; y < h; y += 5) g.fillRect(hw * 0.27, y, hw * 0.46, 1.5);
-  g.fillStyle = '#7f8a6a'; g.fillRect(hw * 0.35, h * 0.02, hw * 0.3, h * 0.05);
-  // chamfer face: two mosaic strips and a shuttered slit
-  g.fillStyle = '#d5c8a6'; g.fillRect(hw + hw * 0.1, h * 0.12, hw * 0.8, h * 0.84);
-  for (const x of [0.16, 0.66]) { const m = g.createLinearGradient(0, 0, 0, h); g.fillStyle = '#6f8f86'; g.fillRect(hw + hw * x, h * 0.2, hw * 0.18, h * 0.62); g.fillStyle = '#b05a46'; for (let y = h * 0.22; y < h * 0.8; y += 6) g.fillRect(hw + hw * x + 2, y, hw * 0.18 - 4, 2); }
-  g.fillStyle = '#34353a'; g.fillRect(hw + hw * 0.42, h * 0.25, hw * 0.16, h * 0.6);
-  streaks(g, w, h, 12, 7202, 0.1, 40, '70,50,35');
-}
-
-function buildRibaudo() {
-  initShared();
-  const pts = [[RP[0], RP[1]], [RP[2], RP[3]], [RP[4], RP[5]], [RP[6], RP[7]]];
-  const y0 = gMin(pts), W = RF.toW;
-  const F = frame(RF.O[0], y0, RF.O[1], RF.N[0], RF.N[1]), at = (x, y, z) => mul(F, tr(x, y, z));
-  defMat('pwRibBody', 512, 256, [1.9, 2.5], paintRib);
-  defMat('pwRibMarble', 64, 64, [2, 2], (g, w, h) => { g.fillStyle = '#a9a69c'; g.fillRect(0, 0, w, h); noiseDots(g, w, h, 160, 2, 7211, ['rgba(60,60,55,0.18)', 'rgba(240,240,230,0.22)']); });
-  begin(y0);
-  // plinth in grey marble: octagonal body outline grown by 0.12
-  const HX = 1.5, HZ = 1.2, C = 0.55;
-  const ring = (gx, gz, c) => [[-gx + c, -gz], [gx - c, -gz], [gx, -gz + c], [gx, gz - c], [gx - c, gz], [-gx + c, gz], [-gx, gz - c], [-gx, -gz + c]].map(p => W(p[0], p[1]));
-  prism('pwRibMarble', ring(HX + 0.14, HZ + 0.14, C + 0.1), -0.5, 0.65, { uvo: [0, 0] });
-  prism('pwRibMarble', ring(HX + 0.04, HZ + 0.04, C + 0.04), 0.65, 0.75);
-  // faces: 2 long door faces (+z, -z), 2 short door faces, 4 chamfers with the mosaic region
-  const FH = 2.45, fy = 0.75;
-  const face = (cx, cz, ry, wd, doorface) => panel('pwRibBody', wd, FH, { M: mul(F, tr(cx, fy, cz)), ry, uvk: [0.5, 1], uvo: [doorface ? 0 : 0.5, 0], noao: true });
-  face(0, HZ, 0, 2 * (HX - C), true); face(0, -HZ, PI, 2 * (HX - C), true);
-  face(HX, 0, PI / 2, 2 * (HZ - C), true); face(-HX, 0, -PI / 2, 2 * (HZ - C), true);
-  const dg = C * Math.SQRT2;
-  face(HX - C / 2, HZ - C / 2, PI / 4, dg, false); face(-HX + C / 2, HZ - C / 2, -PI / 4, dg, false);
-  face(HX - C / 2, -HZ + C / 2, 3 * PI / 4, dg, false); face(-HX + C / 2, -HZ + C / 2, -3 * PI / 4, dg, false);
-  // body core (so the faces have a back and the roof a base), cream
-  prism('flat', ring(HX - 0.02, HZ - 0.02, C), 0.7, fy + FH, { c: '#e2d6b8', noao: true });
-  // canopy: rounded rectangle slab 5.05 x 3.9, a thin cream cap, a coffered darker underside, brackets
-  const cano = (ax, az, r, y1, y2, c) => { const p = []; const cs = [[ax - r, az - r, 0], [-ax + r, az - r, PI / 2], [-ax + r, -az + r, PI], [ax - r, -az + r, 3 * PI / 2]]; for (const [cx, cz, a] of cs) for (let k = 0; k <= 5; k++) { const t = a + k * PI / 10; p.push(W(cx + r * Math.cos(t), cz + r * Math.sin(t))); } prism('flat', p, y1, y2, { c, noao: true }); };
-  cano(2.52, 1.95, 0.9, 3.2, 3.32, '#cdb98f');
-  cano(2.5, 1.93, 0.9, 3.32, 3.6, '#e6dabc');
-  // brackets (scrolls) under the canopy
-  for (const [x, z, ry] of [[0, HZ, 0], [0, -HZ, PI], [HX, 0, PI / 2], [-HX, 0, -PI / 2]]) bx('flat', mul(F, tr(x, 3.0, z)), -0.3, 0.3, 0, 0.2, -0.1, 0.4, { ry, c: '#d9c9a0', noao: true });
-  // the pierced balustrade on top between two urn posts (front, the +z side), and the name board over the door
-  const posts = [-1.2, 1.2];
-  for (const x of posts) { bx('flat', F, x - 0.12, x + 0.12, 3.6, 4.4, 1.55, 1.79, { c: '#e0d1ac', noao: true }); sphere('flat', 0.2, { M: F, p: [x, 4.55, 1.67], seg: 8, c: '#d8c8a2' }); }
-  balus(mul(F, tr(0, 3.62, 1.67)), 2.1, 0.7, { noao: true });
-  bx('flat', F, -0.8, 0.8, 2.95, 3.2, HZ, HZ + 0.06, { c: '#8a7a52', noao: true });
-  const o = end('Chiosco Ribaudo');
-  o.userData.solids = [[RP, null, y0 + 3.7]];
-  return o;
-}
-export const RIBAUDO = { name: 'Chiosco Ribaudo', x: RC[0], z: RC[1], radius: 14, skipIds: ['w204272307'], build: buildRibaudo };
 
 // ================================================================================================
 // CORNER PALAZZO at the tip of the block w204272306 (veneer on the two street faces seen in the photos)

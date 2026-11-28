@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import {
   PI, bx, begin, end, defMat, part, box, cyl, lathe, sphere, cone, panel, extrude, archBay, prism, pyramid, shell,
-  mul, tr, rotY, frame, pairsOf, centroid, obb, facing, groundRange, initShared, ensureTrunk, paintAshlar, noiseDots, streaks, palm, rail,
+  mul, tr, rotY, frame, pairsOf, centroid, obb, facing, groundRange, groundY, initShared, ensureTrunk, paintAshlar, noiseDots, streaks, palm, rail,
 } from './lmc-kit.js';
 import { FP } from './landmarks-city-data.js';
 
@@ -181,8 +181,13 @@ const EREM_WALLS = (() => {   // the arcades (a line of coupled columns is a wal
 export const EREMITI = { name: 'San Giovanni degli Eremiti', x: -577, z: 683, radius: 50, skipIds: [FP.eremiti.id], build: buildEremiti, walls: EREM_WALLS };
 
 // ====================================================================================================
-// Palazzo dei Normanni, the front on Piazza del Parlamento (the Torre Pisana in the middle is in src/landmarks.js): a long ochre plaster front of three storeys with arched windows in stucco frames,
-// a frieze of small interlaced arches under the cornice, bundles of slender pilasters along it, the pointed Arab-Norman merlons all round the roof, and the baroque portal with the crowned arms and two lanterns.
+// Palazzo dei Normanni. The front on Piazza del Parlamento (the Torre Pisana is in src/landmarks.js) is the viceroys' wing, from Mapillary frames 697550499410295 and 393057288882623 (views from the
+// Villa Bonanno side): a warm terracotta stone front with tall windows under alternating curved and pointed pediments, a long balcony ledge with iron rails, a row of small windows under the cornice,
+// and at the south end a salmon-red block with white window frames and dark shutters; flat cornice, no merlons. The other sides keep the Norman revival dress of Commons "0573 - Palermo - Palazzo dei
+// Normanni - Facciata posteriore": ochre plaster, arched windows, the small frieze under the cornice, pointed merlons. Under them the palace stands on a high tufa base with small arched windows (as under the tower in "0564 - Palermo - Palazzo dei Normanni, facciata principale").
+// The baroque portal with the crowned arms and two lanterns stands on the street, a little north of the middle of the long front (Mapillary 151123526886607). The Torre Pisana (landmarks.js)
+// stands at the north end of this front, on the next edge of the footprint: no base windows, cornice or merlons are drawn along that edge.
+// Not verified: the exact count and spacing of the windows, the base's windows on each side.
 // ====================================================================================================
 const NO = { H: 19.5, TW: 7.2 };
 function paintNorWall(g, w, h) {
@@ -220,6 +225,24 @@ function paintNorPortal(g, w, h) {   // 5 x 10 m: the salmon ashlar wall with th
   for (const sg of [-1, 1]) { g.fillStyle = '#2b2a2c'; g.fillRect(X(cx + sg * 1.85) - 0.18 * sx, Y(4.5), 0.36 * sx, 0.7 * sy); g.fillStyle = '#f0dca0'; g.fillRect(X(cx + sg * 1.85) - 0.1 * sx, Y(4.4), 0.2 * sx, 0.5 * sy); }   // the lanterns
   streaks(g, w, h, 8, 862, 0.2, 160);
 }
+// the viceroys' wing, one tile of two bays (9.2 m) by 30 m, painted downwards from the cornice (d metres below the top): small windows, the piano nobile, a lower row, then plain stone to the ground
+function paintNorSpan(g, w, h, o) {
+  const TW = 9.2, TH = 30, sx = w / TW, sy = h / TH, X = (s) => s * sx, D = (d) => d * sy;
+  const R = (x0, d0, x1, d1, c) => { g.fillStyle = c; g.fillRect(X(x0), D(d0), (x1 - x0) * sx, (d1 - d0) * sy); };
+  g.fillStyle = o.wall; g.fillRect(0, 0, w, h); noiseDots(g, w, h, w * h / 60, 2, o.seed, ['rgba(90,45,25,0.13)', 'rgba(255,225,185,0.11)']);
+  if (o.stone) for (let d = 0.55, k = 0; d < TH; d += 0.55, k++) { R(0, d, TW, d + 0.07, 'rgba(95,55,28,0.22)'); for (let x = (k % 2) * 0.6; x < TW; x += 1.25) R(x, d - 0.5, x + 0.05, d, 'rgba(95,55,28,0.18)'); }
+  const FR = o.frame;
+  const win = (cx, d0, d1, ww) => {   // frame, a white casement with its panes, dark shutters folded back each side
+    R(cx - ww / 2 - 0.22, d0 - 0.22, cx + ww / 2 + 0.22, d1 + 0.14, FR); R(cx - ww / 2, d0, cx + ww / 2, d1, '#e6e3da'); R(cx - ww / 2 + 0.14, d0 + 0.14, cx - 0.07, d1 - 0.08, '#44505a'); R(cx + 0.07, d0 + 0.14, cx + ww / 2 - 0.14, d1 - 0.08, '#44505a');
+    for (let d = d0 + 0.9; d < d1 - 0.2; d += 0.85) R(cx - ww / 2, d, cx + ww / 2, d + 0.07, '#e6e3da');
+    for (const sg of [-1, 1]) R(cx + sg * (ww / 2 + 0.34) - 0.24, d0, cx + sg * (ww / 2 + 0.34) + 0.24, d1, '#33271f');
+    R(cx - ww / 2 - 0.35, d1 + 0.14, cx + ww / 2 + 0.35, d1 + 0.34, 'rgba(60,28,14,0.35)');
+  };
+  R(0, 0, TW, 0.8, o.trim); R(0, 0.8, TW, 1.1, 'rgba(60,30,14,0.4)');
+  for (const cx of [2.3, 6.9]) { win(cx, 1.75, 3.15, 1.15); win(cx, 6.3, 9.7, 1.45); win(cx, 12.5, 14.9, 1.3); win(cx, 18.2, 20.0, 1.0); }
+  R(0, 4.2, TW, 4.55, o.trim); R(0, 10.0, TW, 10.4, o.trim); R(0, 10.4, TW, 10.9, 'rgba(60,30,14,0.35)'); R(0, 16.5, TW, 16.85, o.trim); R(0, 21.6, TW, 22.0, o.trim);
+  streaks(g, w, h, 22, o.seed + 1, 0.16, h * 0.18, '70,40,22');
+}
 function buildNormanni() {
   initShared();
   const p = FP.normanni, pts = pairsOf(p.p), holes = (p.holes || []).map(pairsOf), gr = groundRange(pts);
@@ -228,24 +251,58 @@ function buildNormanni() {
   defMat('noWall', 256, 512, [NO.TW, NO.H], paintNorWall);
   defMat('noPortal', 160, 320, [5, 10], paintNorPortal);
   defMat('noStone', 256, 256, [3.3, 3.3], (g, w, h) => paintAshlar(g, w, h, 3.3, 3.3, 0.5, 1.2, '#d3b27d', '#9b7a4d', 871, 2, 0.06));
+  // one canvas for both wings of the front: the stone wing's tile in the left half, the red block's in the right
+  defMat('noSpan', 384, 512, [18.4, 30], (g, w, h) => {
+    paintNorSpan(g, w / 2, h, { wall: '#bb8257', frame: '#d8bc92', trim: '#d3b082', stone: true, seed: 876 });
+    g.save(); g.translate(w / 2, 0); g.beginPath(); g.rect(0, 0, w / 2, h); g.clip(); paintNorSpan(g, w / 2, h, { wall: '#c4745a', frame: '#e8d3bc', trim: '#dca98a', stone: false, seed: 878 }); g.restore();
+  });
   defMat('noMer', 64, 64, [1.6, 1.0], (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#e4cba0'; g.fillRect(0, h * 0.5, w, h * 0.5); for (const x of [0, 32]) { g.beginPath(); g.moveTo(x + 4, h * 0.5); g.lineTo(x + 16, 2); g.lineTo(x + 28, h * 0.5); g.fill(); } g.fillStyle = 'rgba(70,45,20,0.25)'; g.fillRect(0, h * 0.5, w, 3); }, { alphaTest: 0.5, side: THREE.DoubleSide, noShadow: true });
-  shell('noWall', pts, holes, gy, WH, { lo: gr.lo - 3, roof: '#8f8a82', cc: '#e2c8a0' });
-  // the pointed merlons all round the roofline and round the courtyards
-  const ring = (r) => { for (let i = 0; i < r.length; i++) { const A = r[i], B = r[(i + 1) % r.length], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz); if (l < 2) continue;
+  // the base down to the ground, the upper walls (painted from the floor line up), the flat roof and its cornice
+  prism('noStone', pts, gr.lo - 3, gy, { holes, c: '#a7a8a4', noao: true });
+  // the two fronts on the piazza: the long stone wing and the red block south of it (their footprint edges, south to north)
+  const fa = [-639.3, 532.3], fb = [-684.1, 486.2], ra = [-624.0, 548.1], rb = [-637.3, 531.0], WINGS = [['noRed', ra, rb], ['noSpan', fa, fb]];
+  const onFront = (A) => WINGS.some(([, c]) => Math.hypot(A[0] - c[0], A[1] - c[1]) < 0.2);
+  const underTower = (A) => [fb, [-688.5, 477.1]].some((c) => Math.hypot(A[0] - c[0], A[1] - c[1]) < 0.2);   // the edges the Torre Pisana covers (src/landmarks.js)
+  // the base's small arched windows, where it stands high enough over the street (not behind the two fronts, which cover it)
+  const arch = (hw, y0, top) => { const q = new THREE.Shape(); q.moveTo(-hw, y0); q.lineTo(hw, y0); q.lineTo(hw, top - hw); q.absarc(0, top - hw, hw, 0, PI, false); q.lineTo(-hw, y0); return q; };
+  prism('noWall', pts, gy, gy + WH, { holes, uvo: [0, -gy / WH] });
+  prism('flat', pts, gy + WH, gy + WH + 0.15, { holes, c: '#8f8a82' });
+  for (let i = 0; i < pts.length; i++) { const A = pts[i], B = pts[(i + 1) % pts.length], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz); if (l < 1.2 || underTower(A)) continue;
+    bx('flat', frame((A[0] + B[0]) / 2, gy + WH - 0.45, (A[1] + B[1]) / 2, -dz / l, dx / l), -l / 2, l / 2, 0, 0.8, -0.5, 0.5, { c: '#e2c8a0' }); }
+  for (let i = 0; i < pts.length; i++) { const A = pts[i], B = pts[(i + 1) % pts.length], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz); if (l < 8 || onFront(A) || underTower(A)) continue;
+    const n = Math.floor(l / 6.5), nx = -dz / l, nz = dx / l;
+    for (let k = 0; k < n; k++) { const t = (k + 0.5) / n, x = A[0] + dx * t, z = A[1] + dz * t; if (gy - groundY(x + nx * 0.6, z + nz * 0.6) < 4.4) continue;
+      const W = frame(x, gy - 3.4, z, nx, nz); extrude('noStone', arch(0.72, -0.2, 2.45), 0.07, { M: W, c: '#c9bfa8', cs: 5, noao: true }); extrude('flat', arch(0.48, 0, 2.2), 0.11, { M: W, c: '#2a2018', cs: 5, noao: true }); } }
+  // the pointed merlons all round the roofline and round the courtyards, but not along the piazza
+  const ring = (r, outer) => { for (let i = 0; i < r.length; i++) { const A = r[i], B = r[(i + 1) % r.length], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz); if (l < 2 || (outer && (onFront(A) || underTower(A)))) continue;
     const MM = frame((A[0] + B[0]) / 2, gy + WH + 0.15, (A[1] + B[1]) / 2, -dz / l, dx / l); panel('noMer', l, 1.0, { M: mul(MM, tr(0, 0, 0.0)), uvk: [l / 1.6, 1], noao: true }); } };
-  ring(pts); for (const h of holes) ring(h);
-  // the Piazza del Parlamento front: a plinth, bundles of pilasters every bay, the portal on the left wing (the centre is the Torre Pisana of the centro module)
-  const fa = [-639.3, 532.3], fb = [-684.1, 486.2], fl = Math.hypot(fb[0] - fa[0], fb[1] - fa[1]);
-  const Mf = frame((fa[0] + fb[0]) / 2, gy, (fa[1] + fb[1]) / 2, 0.717, -0.697);
-  for (const x of [-fl / 2 + 3.6, -fl / 2 + 10.8, -fl / 2 + 18.0, fl / 2 - 3.6, fl / 2 - 10.8, fl / 2 - 18.0]) {
-    bx('noStone', Mf, x - 0.35, x + 0.35, 0, WH - 0.4, 0.0, 0.32, { c: '#e2c691' });
-    for (const dx of [-0.2, 0.2]) cyl('noStone', 0.1, 0.1, WH - 1.0, 6, { M: mul(Mf, tr(x + dx, 0.6, 0.38)), c: '#ead7ab' });
-    bx('noStone', Mf, x - 0.4, x + 0.4, WH - 0.4, WH - 0.1, 0.0, 0.4, { c: '#d9bd86' });
+  ring(pts, true); for (const h of holes) ring(h, false);
+  const top = gy + WH - 0.4;
+  for (const [kind, A, B] of WINGS) {
+    const l = Math.hypot(B[0] - A[0], B[1] - A[1]), nx = -(B[1] - A[1]) / l, nz = (B[0] - A[0]) / l, red = kind === 'noRed';
+    let lo = Infinity; for (let i = 0; i <= 8; i++) lo = Math.min(lo, groundY(A[0] + (B[0] - A[0]) * i / 8 + nx * 0.3, A[1] + (B[1] - A[1]) * i / 8 + nz * 0.3));
+    const M = frame((A[0] + B[0]) / 2, 0, (A[1] + B[1]) / 2, nx, nz), yb = lo - 1, hh = top - yb, n = Math.max(1, Math.round(l / 9.2));
+    for (let k = 0; k < n; k++) panel('noSpan', l / n, hh, { M: mul(M, tr(-l / 2 + (k + 0.5) * l / n, yb, 0.04)), uvk: [0.5, hh / 30], uvo: [red ? 0.5 : 0, 1 - hh / 30] });
+    // the balcony ledge with its rail, the string course over the lower floor and a pediment over each tall window
+    for (const [x0, x1] of [[-l / 2, l / 2]]) {
+      bx('flat', M, x0, x1, top - 10.4, top - 10.05, 0, 0.75, { c: red ? '#d9a88a' : '#c9a578', noao: true });
+      const iron = { c: '#26242a', noao: true }, posts = Math.round((x1 - x0) / 1.15);
+      bx('flat', M, x0, x1, top - 9.15, top - 9.07, 0.66, 0.74, iron);
+      for (let k = 0; k <= posts; k++) { const x = Math.max(x0 + 0.04, Math.min(x1 - 0.04, x0 + k * (x1 - x0) / posts)); bx('flat', M, x - 0.03, x + 0.03, top - 10.05, top - 9.15, 0.67, 0.73, iron); }
+      bx('flat', M, x0, x1, top - 4.55, top - 4.2, 0, 0.28, { c: red ? '#dca98a' : '#d3b082', noao: true });
+    }
+    for (let k = 0; k < n * 2; k++) {
+      const x = -l / 2 + (k + 0.5) * l / (n * 2), y = top - 6.0;
+      const sh = new THREE.Shape(); sh.moveTo(-1.15, 0); sh.lineTo(1.15, 0); if (k % 2 && !red) sh.quadraticCurveTo(0, 1.35, -1.15, 0); else { sh.lineTo(0, red ? 0.25 : 0.75); sh.lineTo(-1.15, 0); }
+      extrude('flat', sh, 0.26, { M: mul(M, tr(x, y, 0.02)), c: red ? '#e8d3bc' : '#dcc094', cs: 5, noao: true });
+    }
   }
-  const MP = mul(Mf, tr(-fl / 4, 0, 0.3));
-  bx('noStone', MP, -2.8, 2.8, 0, 7.8, 0, 0.9, { c: '#d8c196' });
-  panel('noPortal', 5.0, 10.0, { M: mul(MP, tr(0, 0, 0.92)), noao: true });
-  bx('noStone', MP, -3.0, 3.0, 7.8, 8.3, 0, 1.2, { c: '#e4cf9e' });
+  // the portal, on the street a little north of the middle of the long front: shallow below head height (the footprint's wall is its collision), the hood above
+  const Mf = frame((fa[0] + fb[0]) / 2, 0, (fa[1] + fb[1]) / 2, 0.717, -0.697), fl = Math.hypot(fb[0] - fa[0], fb[1] - fa[1]), px = fl * 0.03;
+  const q = [(fa[0] + fb[0]) / 2 + px * -0.697, (fa[1] + fb[1]) / 2 - px * 0.717], MP = mul(Mf, tr(px, groundY(q[0] + 0.5, q[1] - 0.5) - 0.15, 0));
+  bx('noStone', MP, -2.8, 2.8, -1.0, 10.1, 0, 0.2, { c: '#d8c196', noao: true });
+  panel('noPortal', 5.0, 10.0, { M: mul(MP, tr(0, 0, 0.22)), noao: true });
+  bx('noStone', MP, -3.0, 3.0, 10.1, 10.6, 0, 0.8, { c: '#e4cf9e', noao: true });
   return end('Palazzo dei Normanni');
 }
 export const NORMANNI = { name: 'Palazzo dei Normanni', x: -700, z: 502, radius: 120, skipIds: [FP.normanni.id], build: buildNormanni };

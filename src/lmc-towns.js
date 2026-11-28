@@ -1,200 +1,480 @@
 // City landmarks of the towns around Palermo (docs/faithfulness/towns.md). Registered in src/landmarks-city.js, built with the full-detail tile that holds them.
-// Villabate: the Chiesa Madre di Sant'Agata (mid 19th century, the parish church; the facade is not in any street photo, the church stands inside a block of houses, so the front
-// is the usual neoclassical one of the Sicilian parish churches, on the end of the footprint that opens on a street), the slender concrete bell tower of the Chiesa di San Giuseppe
-// (Mapillary, April 2021: a tall tapering slab with one bell opening and a cross, behind iron railings, palms and globe lamps) and the Palchetto della Musica of the public garden.
-// Monreale: the Duomo (Santa Maria Nuova, 1174 to 1189). Seen in Mapillary photos from the north side (March 2019): the golden tufa wall with its three registers (an arcade at the foot,
-// blind arches over it, tall pointed windows under the eaves), the square clock tower of the north-west corner with its crenellated top, the low tiled roof, the paving of large grey slabs
-// of the square. NOT seen in any photo: the west front between the towers (the porch, its door, the gable), the south tower, the apse and the south side (the monastery stands there).
-// Those are drawn from the type of a Norman basilica and the size Wikipedia gives (about 102 m by 40 m), and heights are estimated from the photos, not measured.
+// Everything is drawn in code from photos that were looked at only. Footprints are the OSM buildings of the world tiles (14_8 and 15_8; -13_7 for Monreale; 4_14 for
+// Belmonte Mezzagno, -22_-13 for Capaci). Heights are estimates read off the photos against the footprints, not measurements.
+// Villabate, Chiesa Madre di Sant'Agata (mid 19th century): the front is the north end, on Piazza Matrice; the regional orthophoto (Regione Siciliana SITR, 2012-13) shows one
+// tiled gable roof with a round apse at the south end and no tower. The front is drawn from the parish's own emblem (a drawing of the church on the 2019 San Giuseppe festival
+// poster, cronachevillabatesi.it/images/san-giuseppe-villabate2019.jpg): a tall cream gabled front with corner pilasters, a cross on the point, a round window and one portal
+// under a small pediment. The half round windows high in the side walls are those seen from inside (wanderlog.com/place/details/633560). Not verified: no photo of the real front
+// was found (the diocese census picture refuses requests; the street photos pass beside the square without seeing it), so proportions, colours and relief are the emblem's; a
+// text snippet speaks of three doors, the emblem shows one; the sides and the back are plain.
+// Villabate, Chiesa di San Giuseppe: a modern church under a tent roof of brown sheet that sweeps up from deep eaves to a tall point with three iron crosses, walls of upright
+// slats between concrete posts, a low flat wing to the south, and a freestanding white bell tower to the north that tapers, carries a cross shaped ledge under the pointed bell
+// openings and ends in two blades of unequal height. Mapillary 523328348824437 and 1199042473884603 (March 2021, from the east: roof, walls, tower), 160889729320719 and
+// 807518163471976 (April 2021, from the north: ledge, bell, globe lamps, palms); the orthophoto for the plan and the tower's place. Not verified: the west and south sides,
+// the entrance, the exact roof folds, where the lamps and the palm stand. The garden railing of the photos is not drawn here: it is the look of the map's own wall there (src/wall-looks.js).
+// Villabate, Palchetto della Musica (Ernesto Basile, 1922, for the Napoli family: fondoambiente.it/luoghi/tempietto-della-musica): a square block of shops in grooved cream
+// plaster, over it an open terrace with an iron railing, ten columns and a low pyramid roof with a fretted wooden edge and an iron finial. Mapillary 747931339175526,
+// 109735734525655, 3934558339999073 and 743067373031377 (2021, the east and north faces). Not verified: the south and west faces; the two stairs at the back that the text
+// describes are seen in no photo and are not drawn.
+// Monreale, the Duomo (Santa Maria Nuova, 1174 to 1189). West front and towers: Wikimedia Commons "Monreale - Duomo di Monreale - 2024-09-29 19-18-31 001.jpg" and
+// "MonrealeCathedral-pjt10.jpg" (the porch of three arches on columns under a balustrade, the interlaced arches and the gable behind it, the lower north tower with its row
+// of bell openings and merlons, the taller south tower with its open upper stages). Apses: Commons "Monreale - Cathedral - 2.jpg", "Cattedrale (Monreale) 17 07 2019
+// 01.jpg", "... 02.jpg", "... 04.jpg", "Monreale Cathedral 009 6460.jpg", "Monreale-bjs-3.jpg", "Monreale-bjs-17.jpg" (three registers of interlaced pointed arches inlaid
+// in dark and pale stone, with roundels). Flanks: Mapillary, north side, March 2019. Roof plan: the orthophoto. The map's ground slopes right across the footprint (about
+// 18 m from the north-west corner to the foot of the apses) while the photos show a level square at the front, so every part is carried down to the ground under it and
+// not set on one plinth; the floor is the ground at the middle of the front. Not verified: the heights, the south side (the monastery stands there), the bronze door inside
+// the porch, the carving of the porch, the number of arches round each apse.
 // Belmonte Mezzagno and Capaci: their Chiesa Madre, see the notes over each model below for what is drawn from a photo and what from the type.
-// Footprints are the OSM buildings of the world tiles (14_8 and 15_8; -13_7 for Monreale; 4_14 for Belmonte Mezzagno, -22_-13 for Capaci). Everything is drawn in code; the photos were looked at only.
 import * as THREE from 'three';
-import { PI, begin, end, defMat, part, box, bx, cyl, cone, sphere, panel, prism, gable, extrude, pyramid, balus, rail, mul, tr, frame, pairsOf, obb, groundRange, groundY, initShared, paintFacade, paintAshlar, noiseDots, streaks } from './lmc-kit.js';
+import { PI, begin, end, defMat, part, box, bx, cyl, cone, sphere, panel, prism, gable, extrude, pyramid, balus, rail, palm, ensureTrunk, gridMesh, mul, tr, rotY, frame, pairsOf, groundRange, groundY, initShared, paintFacade, paintAshlar, noiseDots, streaks } from './lmc-kit.js';
 
 const SANTAGATA = { id: 'w35582356', p: [7041.8, 4272.7, 7026.2, 4308.3, 7037.9, 4313.8, 7053, 4277.7] };
-const GIUSEPPE = { id: 'w48009589', p: [7651, 4293.1, 7645.2, 4303.7, 7645.1, 4310.8, 7651.7, 4323.7, 7656.8, 4337.8, 7660, 4337.2, 7666.5, 4349.3, 7683.6, 4336.3, 7673.8, 4327.2, 7677.5, 4322.4, 7681, 4322.4, 7683.8, 4310.6, 7683.3, 4302.8, 7680.6, 4302.8, 7678.6, 4296.1, 7675.1, 4290.1, 7672.1, 4291.7, 7662.5, 4283.7, 7654.9, 4295.2],
-  x: 7664.5, z: 4287.5, ux: 0.55, uz: 0.83 };   // the foot of the tower: the north tip of the footprint w48009589, the face turned to the street on the south-east side (Mapillary vdb)
+const GIUSEPPE = { id: 'w48009589', p: [7651, 4293.1, 7645.2, 4303.7, 7645.1, 4310.8, 7651.7, 4323.7, 7656.8, 4337.8, 7660, 4337.2, 7666.5, 4349.3, 7683.6, 4336.3, 7673.8, 4327.2, 7677.5, 4322.4, 7681, 4322.4, 7683.8, 4310.6, 7683.3, 4302.8, 7680.6, 4302.8, 7678.6, 4296.1, 7675.1, 4290.1, 7672.1, 4291.7, 7662.5, 4283.7, 7654.9, 4295.2] };
 const PALCHETTO = { id: 'w870659720', p: [7215.2, 4255.1, 7211.2, 4265.1, 7221.4, 4269.2, 7225.4, 4259.2] };
 
 const facadeMat = (key, bayW, H, spec, px = 40) =>
   defMat(key, Math.max(64, Math.round(bayW * px / 16) * 16), Math.max(128, Math.round(H * px / 16) * 16), [bayW, H], (g, w, h) => paintFacade(g, w, h, bayW, H, spec));
 const centre = pts => [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length];
+// a point (x, z) of the frame on a front at F (outward normal n, +x to the right seen from outside) in world metres
+const toWorld = (F, n) => (x, z) => [F[0] + x * n[1] + z * n[0], F[1] - x * n[0] + z * n[1]];
+const poly = pts => { const s = new THREE.Shape(); pts.forEach((p, i) => i ? s.lineTo(p[0], p[1]) : s.moveTo(p[0], p[1])); s.lineTo(pts[0][0], pts[0][1]); return s; };
+// a pointed arch outline, w wide and h tall to the point, springing from y = 0 at the foot
+const pointed = (w, h) => { const r = w / 2, y = h - w * 0.62, s = new THREE.Shape(); s.moveTo(-r, 0); s.lineTo(r, 0); s.lineTo(r, y); s.quadraticCurveTo(r, h - w * 0.2, 0, h); s.quadraticCurveTo(-r, h - w * 0.2, -r, y); s.lineTo(-r, 0); return s; };
+// 1 or -1: which side of an edge a -> b of this ring looks outward
+const turn = ring => Math.sign(ring.reduce((s, a, i) => { const b = ring[(i + 1) % ring.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0));
+// a wall panel along the edge a -> b (world x, z) from height y0 to y1, facing the side sg of the ring
+function wall(key, a, b, y0, y1, sg, o = {}) {
+  const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz);
+  panel(key, l, y1 - y0, { M: frame((a[0] + b[0]) / 2, y0, (a[1] + b[1]) / 2, sg * dz / l, -sg * dx / l), ...o });
+}
 
 // ---------------------------------------------------------------------------------------------------
-// Chiesa Madre di Sant'Agata: a nave 12.9 m wide and 39 m long under a tiled gable roof, the front on the south end with a pediment, pilasters, an arched portal, a round window,
-// and a square belfry over it that ends in a lead dome and a cross.
+// Chiesa Madre di Sant'Agata: a nave about 12.5 m wide and 39 m long under one tiled gable roof, a round apse roof at the south end, the front on the north end (Piazza Matrice).
+// Frame F: the middle of the front on the ground, +z out of the front.
 // ---------------------------------------------------------------------------------------------------
+const AG_F = [7047.4, 4275.2], AG_N = [0.408, -0.913], AG_W = 12.4, AG_L = 39;
+function paintAgataFront(g, w, h) {   // 12.4 m wide, 16 m tall: cream render, the sides of the corner pilasters, the round window, the portal
+  const sx = w / 12.4, sy = h / 16, X = x => (x + 6.2) * sx, Y = y => h - y * sy;
+  const R = (x0, y0, x1, y1, c) => { g.fillStyle = c; g.fillRect(X(x0), Y(y1), (x1 - x0) * sx, (y1 - y0) * sy); };
+  R(-6.2, 0, 6.2, 16, '#ecdcae'); noiseDots(g, w, h, w * h / 60, 2, 1301, ['rgba(120,90,50,0.08)', 'rgba(255,255,240,0.09)']);
+  R(-6.2, 0, 6.2, 0.9, '#b9a888');
+  for (const s of [-1, 1]) for (let y = 0.9; y < 12.4; y += 0.55) R(s * 5.15 - 0.55, y, s * 5.15 + 0.55, y + 0.04, 'rgba(110,80,40,0.35)');
+  R(-1.65, 0, 1.65, 4.75, '#d8bd88'); R(-1.2, 0, 1.2, 4.35, '#4a3020'); R(-0.03, 0, 0.03, 4.35, '#1e130c');
+  for (const x of [-1.05, 0.2]) for (const y of [0.35, 1.7, 3.05]) R(x, y, x + 0.85, y + 1.05, '#3a2417');
+  g.fillStyle = '#d3b57c'; g.beginPath(); g.arc(X(0), Y(10.8), 1.35 * sx, 0, 2 * PI); g.fill(); g.fillStyle = '#302b28'; g.beginPath(); g.arc(X(0), Y(10.8), 0.95 * sx, 0, 2 * PI); g.fill();
+  g.strokeStyle = '#8a7c66'; g.lineWidth = 1.5; for (let a = 0; a < 4; a++) { g.beginPath(); g.moveTo(X(0), Y(10.8)); g.lineTo(X(0) + Math.cos(a * PI / 4) * 0.95 * sx, Y(10.8) + Math.sin(a * PI / 4) * 0.95 * sy); g.moveTo(X(0), Y(10.8)); g.lineTo(X(0) - Math.cos(a * PI / 4) * 0.95 * sx, Y(10.8) - Math.sin(a * PI / 4) * 0.95 * sy); g.stroke(); }
+}
 function buildSantAgata() {
   initShared();
-  const pts = pairsOf(SANTAGATA.p), ob = obb(pts), gr = groundRange(pts), gy = gr.hi + 0.1;
-  // the long axis, pointing south (+z): the front is that end
-  let nx = ob.ux, nz = ob.uz; if (nz < 0) { nx = -nx; nz = -nz; }
-  const L = ob.w, W = ob.d, c = [ob.cx, ob.cz], H = 11.5;   // eave height; the OSM height of 22 m is the belfry
-  begin(gy);
-  facadeMat('saWall', 4.3, H, { base: '#e2d2a8', trim: '#f2e9d0', glass: '#2a2624', seed: 1301, plinth: { h: 0.9, c: '#bba98a' }, grime: 1,
-    bands: [{ y: 10.6, h: 0.5, c: '#f0e6c8' }], rows: [{ y0: 4.4, y1: 8.4, xs: [2.15], w: 1.2, kind: 'arch', fr: 0.16, sill: false }] });
-  facadeMat('saFront', W, 20, { base: '#e2d2a8', trim: '#f4ebd2', glass: '#2a2624', seed: 1302, plinth: { h: 1.1, c: '#bba98a' }, grime: 1,
-    pil: { xs: [0.5, W - 0.5], w: 1.0, c: '#efe4c6' }, bands: [{ y: 7.4, h: 0.45, c: '#f0e6c8' }, { y: 10.9, h: 0.6, c: '#f0e6c8' }],
-    rows: [{ y0: 1.1, y1: 5.8, xs: [W / 2], w: 2.4, kind: 'door', glass: '#3a2a1e' }, { y0: 3.2, y1: 6.2, xs: [2.4, W - 2.4], w: 1.1, kind: 'arch', fr: 0.14, sill: false },
-      { y0: 8.2, y1: 10.2, xs: [W / 2], w: 2.0, kind: 'oculus', fr: 0.22 }] });
-  facadeMat('saTower', 5.6, 12, { base: '#e6d8b0', trim: '#f4ebd2', glass: '#1c1814', seed: 1303, pil: { xs: [0.45, 5.15], w: 0.9, c: '#efe4c6' }, bands: [{ y: 0.2, h: 0.4, c: '#f0e6c8' }, { y: 11.4, h: 0.6, c: '#f0e6c8' }],
-    rows: [{ y0: 4.2, y1: 9.6, xs: [2.8], w: 2.2, kind: 'arch', fr: 0.2, sill: false }], grime: 0 });
-  defMat('saTile', 0, 0, [1, 1], null);
-  // the walls: the prism takes the repeating bay texture, a plinth below it for the slope
-  if (gr.lo < gy - 0.2) prism('stone', pts, gr.lo - 1.5, gy, { c: '#bba98a' });
-  prism('saWall', pts, gy, gy + H, { uvo: [0, -gy / H] });
-  prism('flat', pts, gy + H, gy + H + 0.15, { c: '#8f8a82' });
-  // the gable roof, ridge along the nave; the footprint is the nave, so the gable ends are at the front and the back
-  const M = frame(c[0], gy + H, c[1], nx, nz), rise = W * 0.2;
-  gable('tile', 'saWall', M, W, L, 0, rise, { ov: 0.35, c: '#c98262', wc: '#e2d2a8' });
-  // the front: a flat panel 0.1 m proud of the south wall, taller than the eave by a pediment, and the belfry above it
-  const fx = c[0] + nx * (L / 2 + 0.06), fz = c[1] + nz * (L / 2 + 0.06), F = frame(fx, gy, fz, nx, nz);
-  panel('saFront', W, 12.6, { M: F, uvk: [1, 12.6 / 20] });
-  const sh = new THREE.Shape(); sh.moveTo(-W / 2 - 0.3, 0); sh.lineTo(W / 2 + 0.3, 0); sh.lineTo(0, rise + 0.9); sh.lineTo(-W / 2 - 0.3, 0);
-  part('flat', new THREE.ExtrudeGeometry(sh, { depth: 0.6, bevelEnabled: false }), { M: mul(F, tr(0, 12.1, -0.3)), c: '#efe4c6' });
-  bx('flat', F, -W / 2 - 0.3, W / 2 + 0.3, 11.9, 12.2, -0.1, 0.45, { c: '#e6d9bc' });   // cornice under the pediment
-  // steps and a small forecourt
-  for (let i = 0; i < 3; i++) bx('stone', F, -2.6 + i * 0.15, 2.6 - i * 0.15, 0, 0.45 - i * 0.15, 0, 1.2 - i * 0.4, { c: '#cfc7b4' });
-  // the belfry: a square tower over the front bay, on the nave behind the pediment, three storeys of bell chamber, a lead dome with a lantern and a cross
-  const T = frame(fx - nx * 3.6, gy + H, fz - nz * 3.6, nx, nz), TW = 5.6;
-  bx('stone', T, -TW / 2 - 0.1, TW / 2 + 0.1, -0.3, 0.9, -TW / 2 - 0.1, TW / 2 + 0.1, { c: '#d8c9a4' });
-  for (const [a, b] of [[0, 0], [PI / 2, 0], [PI, 0], [-PI / 2, 0]]) {   // the four faces share one bay texture
-    const Mf = mul(T, new THREE.Matrix4().makeRotationY(a)); panel('saTower', TW, 12, { M: mul(Mf, tr(0, 0, TW / 2 + 0.02)), uvk: [1, 1] });
+  const pts = pairsOf(SANTAGATA.p), gr = groundRange(pts), W = toWorld(AG_F, AG_N), H = 12, rise = 2.5;
+  const y0 = (groundY(...W(-AG_W / 2, 0)) + groundY(...W(AG_W / 2, 0))) / 2;
+  begin(y0);
+  facadeMat('vbAgWall', 4.3, H, { base: '#e2d2a8', trim: '#f2e9d0', glass: '#2a2624', seed: 1301, plinth: { h: 0.9, c: '#bba98a' }, grime: 1,
+    bands: [{ y: 11.1, h: 0.5, c: '#f0e6c8' }], rows: [{ y0: 8.3, y1: 9.8, xs: [2.15], w: 2.4, kind: 'arch', fr: 0.16, sill: false }] });
+  defMat('vbAgFront', 192, 256, [12.4, 16], paintAgataFront);
+  prism('flat', pts, Math.min(gr.lo, y0) - 1.2, y0, { c: '#968768' });
+  prism('vbAgWall', pts, y0, y0 + H, { uvo: [0, -y0 / H] });
+  prism('flat', pts, y0 + H, y0 + H + 0.1, { c: '#8f8a82' });
+  // the roof: a gable from the front to the apse, the apse under half a cone of tiles
+  const F = frame(AG_F[0], y0, AG_F[1], AG_N[0], AG_N[1]), apse = 5.6, gl = AG_L - apse;
+  gable('tile', 'vbAgWall', mul(F, tr(0, H, -gl / 2)), AG_W, gl, 0, rise, { ov: 0.3, c: '#bd8466', wc: '#e2d2a8' });
+  const cg = new THREE.ConeGeometry(AG_W / 2 + 0.25, rise, 10, 1, true, PI / 2, PI); cg.translate(0, rise / 2, 0);
+  part('tile', cg, { M: mul(F, tr(0, H + 0.05, -gl)), c: '#bd8466' });
+  // the front: one gabled slab standing just proud of the end wall, the pilasters, the cornices along the gable, the portal's frame and pediment, the ring of the window
+  // (FP is set back so the relief stays within a quarter of a metre of the footprint's wall, which is what the car meets)
+  const hw = AG_W / 2 + 0.05, eave = 13, top = 15.6, FP = mul(F, tr(0, 0, -0.12));
+  extrude('vbAgFront', poly([[-hw, 0], [hw, 0], [hw, eave], [0, top], [-hw, eave]]), 0.5, { M: mul(FP, tr(0, 0, -0.35)), uv: 'keep', uvk: [1 / 12.4, 1 / 16], uvo: [0.5, 0], noao: true });
+  bx('flat', FP, -hw, hw, -1.4, 0.05, -0.35, 0.17, { c: '#968768' });
+  for (const s of [-1, 1]) {
+    bx('flat', FP, s * (hw - 1.15), s * hw, 0, eave - 0.15, 0.1, 0.32, { c: '#dcc38c' });
+    for (const [a, b] of [[0.9, 1.2], [7.2, 7.55], [eave - 0.45, eave - 0.1]]) bx('flat', FP, s * (hw - 1.3), s * (hw + 0.1), a, b, 0.1, 0.42, { c: '#e8d6a4' });
+    const len = Math.hypot(hw, top - eave), ang = Math.atan2(top - eave, hw);
+    box('flat', len + 0.25, 0.3, 0.75, { M: FP, p: [s * hw / 2, (eave + top) / 2 - 0.1, -0.1], rz: -s * ang, c: '#cfb078', noao: true });
+    bx('flat', FP, s * 1.35, s * 1.72, 0, 4.75, 0.1, 0.36, { c: '#d8bd88' });
   }
-  box('flat', TW - 0.2, 12, TW - 0.2, { M: T, p: [0, 0, 0], c: '#e6d8b0', noao: true });
-  bx('flat', T, -TW / 2 - 0.35, TW / 2 + 0.35, 11.8, 12.6, -TW / 2 - 0.35, TW / 2 + 0.35, { c: '#efe4c6' });   // the cornice of the belfry
-  cyl('lead', 2.3, 2.5, 1.2, 8, { M: mul(T, tr(0, 12.6, 0)) });
-  const dome = new THREE.SphereGeometry(2.3, 10, 6, 0, 2 * PI, 0, PI / 2); part('lead', dome, { M: mul(T, tr(0, 13.8, 0)), s: [1, 1.15, 1] });
-  cyl('lead', 0.45, 0.6, 1.4, 6, { M: mul(T, tr(0, 16.4, 0)) });
-  sphere('bronze', 0.35, { M: mul(T, tr(0, 18.0, 0)), seg: 6 });
-  bx('bronze', T, -0.06, 0.06, 18.2, 20.0, -0.06, 0.06, { c: '#4a3f30', noao: true }); bx('bronze', T, -0.5, 0.5, 19.2, 19.35, -0.06, 0.06, { c: '#4a3f30', noao: true });
-  return end('Chiesa Madre di Sant Agata, Villabate');
+  bx('flat', FP, -2.0, 2.0, 4.75, 5.05, 0.1, 0.5, { c: '#e6d2a0' });
+  extrude('flat', poly([[-2.0, 0], [2.0, 0], [0, 1.15]]), 0.3, { M: mul(FP, tr(0, 5.05, 0.1)), c: '#dcc38c' });
+  part('flat', new THREE.TorusGeometry(1.15, 0.17, 4, 16), { M: mul(FP, tr(0, 10.8, 0.2)), c: '#d8bd88', noao: true });
+  bx('flat', FP, -0.35, 0.35, top - 0.1, top + 0.45, -0.3, 0.2, { c: '#cfb078' });
+  bx('dark', FP, -0.07, 0.07, top + 0.4, top + 2.0, -0.12, 0.0, { c: '#3a342e', noao: true }); bx('dark', FP, -0.5, 0.5, top + 1.35, top + 1.5, -0.12, 0.0, { c: '#3a342e', noao: true });
+  const o = end('Chiesa Madre di Sant Agata, Villabate');
+  o.userData.solids = [[SANTAGATA.p, null, y0 + H]];
+  return o;
 }
 const cs = centre(pairsOf(SANTAGATA.p));
 export const SANT_AGATA = { name: "Chiesa Madre di Sant'Agata (Villabate)", x: cs[0], z: cs[1], radius: 40, skipIds: [SANTAGATA.id], build: buildSantAgata };
 
 // ---------------------------------------------------------------------------------------------------
-// Chiesa di San Giuseppe: a modern church, a low hall of pale render (the OSM height of 23.5 m is the tower, not the nave) with the bell tower on its north tip. A tall slab of pale concrete that narrows towards the top, one bell opening with
-// the bell in it, a cross of iron on the point, and a cantilevered ledge at the foot of the belfry (the shape in Mapillary vdb).
+// Chiesa di San Giuseppe: the tent roof over the north part of the footprint, the low wing over the rest, the freestanding bell tower to the north.
 // ---------------------------------------------------------------------------------------------------
-function buildGiuseppeTower() {
-  initShared();
-  defMat('sgConc', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#d8ccb0'; g.fillRect(0, 0, w, h); for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(${90 + (i * 7) % 40},${80 + (i * 5) % 30},60,0.07)`; g.fillRect((i * 37) % w, (i * 53) % h, 2 + (i % 3), 2 + (i % 4)); } });
-  const gy = groundY(GIUSEPPE.x, GIUSEPPE.z), M = frame(GIUSEPPE.x, gy, GIUSEPPE.z, GIUSEPPE.ux, GIUSEPPE.uz);
-  begin(gy);
-  const fp = pairsOf(GIUSEPPE.p), fy = groundRange(fp).hi + 0.1;
-  if (groundRange(fp).lo < fy - 0.3) prism('stone', fp, groundRange(fp).lo - 1.5, fy, { c: '#c9bea4' });
-  prism('sgConc', fp, fy, fy + 9.2, { c: '#f0e8d0' });
-  prism('flat', fp, fy + 9.2, fy + 9.5, { c: '#8f8b82' });
-  // a slab 3.4 m wide and 2.6 m deep at the foot, tapering to 1.4 by 1.0 at 26 m: stacked prisms of four steps
-  const steps = [[3.4, 2.6, 0, 8], [3.0, 2.4, 8, 16], [2.5, 2.0, 16, 21], [1.9, 1.5, 21, 25], [1.2, 1.0, 25, 27.4]];
-  for (const [w, d, y0, y1] of steps) bx('sgConc', M, -w / 2, w / 2, y0, y1, -d / 2, d / 2, { c: '#ece0c0' });
-  bx('sgConc', M, -2.2, 2.2, 15.2, 15.7, -1.6, 1.6, { c: '#e2d6b6' });   // the ledge
-  bx('dark', M, -0.65, 0.65, 17.2, 19.4, 0.95, 1.05, { c: '#2a221c', noao: true });   // the bell opening, on the face
-  bx('bronze', M, -0.3, 0.3, 17.6, 18.9, 0.9, 1.0, { c: '#7a5a2a', noao: true });
-  bx('bronze', M, -0.07, 0.07, 27.4, 30.2, -0.07, 0.07, { c: '#3a342e', noao: true }); bx('bronze', M, -0.6, 0.6, 29.0, 29.16, -0.07, 0.07, { c: '#3a342e', noao: true });
-  return end('Chiesa di San Giuseppe, Villabate');
+const SG_TENT = [[7645.1, 4310.8], [7645.2, 4303.7], [7651, 4293.1], [7654.9, 4295.2], [7662.5, 4283.7], [7672.1, 4291.7], [7675.1, 4290.1], [7678.6, 4296.1], [7680.6, 4302.8], [7683.3, 4302.8], [7683.8, 4310.6], [7681, 4322.4], [7668, 4320], [7651.7, 4317]];
+const SG_WING = [[7645.1, 4310.8], [7651.7, 4317], [7668, 4320], [7681, 4322.4], [7677.5, 4322.4], [7673.8, 4327.2], [7683.6, 4336.3], [7666.5, 4349.3], [7660, 4337.2], [7656.8, 4337.8], [7651.7, 4323.7]];
+const SG_APEX = [7658, 4306], SG_C = [7665, 4306];
+const SG_TOWER = [7667.2, 4275], SG_TN = [0.966, -0.259];   // the tower and the way its front looks (east)
+function paintGiuseppeWall(g, w, h) {   // a bay 4 m wide and 8 m tall: a concrete post, upright slats of brown and buff with narrow dark lights high up, a concrete foot
+  const sx = w / 4, sy = h / 8, R = (x0, y0, x1, y1, c) => { g.fillStyle = c; g.fillRect(x0 * sx, h - y1 * sy, (x1 - x0) * sx, (y1 - y0) * sy); };
+  R(0, 0, 4, 8, '#8d765c');
+  for (let i = 0, x = 0.5; x < 4; i++, x += 0.35) { R(x, 0.9, x + 0.19, 7.5, i % 3 === 1 ? '#a8957a' : '#9a846a'); R(x + 0.19, 0.9, x + 0.25, 7.5, '#4a3c30'); if (i % 3 === 0) R(x + 0.04, 3.9, x + 0.15, 6.9, '#2c2a2a'); }
+  R(0, 0, 0.5, 8, '#c6bcaa'); R(0.5, 0, 0.58, 8, '#6e6458'); R(0, 0, 4, 0.9, '#bdb3a0'); R(0, 3.5, 4, 3.75, '#b2a692'); R(0, 7.5, 4, 8, '#5c4636');
+  streaks(g, w, h, 10, 1331, 0.1, 40);
 }
-export const SAN_GIUSEPPE = { name: 'Chiesa di San Giuseppe (Villabate)', x: GIUSEPPE.x, z: GIUSEPPE.z, radius: 45, skipIds: [GIUSEPPE.id], build: buildGiuseppeTower };
+function buildGiuseppe() {
+  initShared(); ensureTrunk();
+  defMat('sgConc', 128, 128, [4, 4], (g, w, h) => { g.fillStyle = '#e4dcca'; g.fillRect(0, 0, w, h); for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(${90 + (i * 7) % 40},${80 + (i * 5) % 30},60,0.07)`; g.fillRect((i * 37) % w, (i * 53) % h, 2 + (i % 3), 2 + (i % 4)); } });
+  defMat('sgWall', 128, 128, [4, 8], paintGiuseppeWall);
+  const y0 = groundRange(SG_TENT).avg, eave = y0 + 8, apex = y0 + 23.6, hiW = groundRange(SG_WING).hi, wing = Math.max(y0 + 4.6, hiW + 3.2);
+  begin(y0);
+  const walls = (ring, top) => {
+    const sg = turn(ring);
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      wall('sgWall', a, b, Math.min(groundY(...a), groundY(...b)) - 0.4, top, sg, { uvk: [Math.max(1, Math.round(l / 4)), 1] });
+    }
+  };
+  walls(SG_TENT, eave); walls(SG_WING, wing);
+  // the wing: a flat roof with a brown edge
+  const grow = (ring, c, d) => ring.map(p => { const dx = p[0] - c[0], dz = p[1] - c[1], l = Math.hypot(dx, dz) || 1; return [p[0] + dx / l * d, p[1] + dz / l * d]; });
+  prism('flat', SG_WING, wing, wing + 0.35, { c: '#c7ae8c' });
+  prism('flat', SG_WING, wing - 0.3, wing, { c: '#6c4434' });
+  // the tent: rings from the eaves up to the point, the height rising faster and faster; the underside of the eaves and their edge
+  const E = grow(SG_TENT, SG_C, 1.8), n = E.length, ccw = turn(SG_TENT) > 0;
+  const arc = [0]; for (let i = 1; i <= n; i++) arc.push(arc[i - 1] + Math.hypot(E[i % n][0] - E[i - 1][0], E[i % n][1] - E[i - 1][1]));
+  const rows = [0, 0.2, 0.4, 0.58, 0.74, 0.87, 0.97].map(t => E.map(p => [p[0] + (SG_APEX[0] - p[0]) * t, eave + (apex - eave) * Math.pow(t, 2.7), p[1] + (SG_APEX[1] - p[1]) * t]));
+  gridMesh('lead', rows, (i, j) => [arc[j] / 2.2, i * 0.8], { wrap: true, flip: ccw, c: '#a5634c', noao: true });
+  const cap = rows[rows.length - 1]; prism('flat', cap.map(p => [p[0], p[2]]), cap[0][1] - 0.15, cap[0][1], { c: '#6c4030' });
+  gridMesh('dark', [E.map(p => [p[0], eave - 0.02, p[1]]), SG_TENT.map(p => [p[0], eave - 0.02, p[1]])], () => [0, 0], { wrap: true, flip: ccw, c: '#6a4a36', noao: true });
+  gridMesh('flat', [E.map(p => [p[0], eave - 0.45, p[1]]), E.map(p => [p[0], eave + 0.02, p[1]])], () => [0, 0], { wrap: true, flip: ccw, c: '#7a4a38', noao: true });
+  for (const [dz, h] of [[0, 3.6], [-1.0, 2.6], [-1.9, 1.6]]) {   // the three crosses on the point
+    const x = SG_APEX[0], z = SG_APEX[1] + dz * 0.6, yy = apex - 1.1;
+    box('dark', 0.1, h + 1.9, 0.1, { p: [x, yy - 1.4, z], c: '#33291f', noao: true }); box('dark', 0.08, 0.12, 0.9, { p: [x, yy + h, z], c: '#33291f', noao: true }); box('dark', 0.08, 0.1, 0.55, { p: [x, yy + h - 0.35, z], c: '#33291f', noao: true });
+  }
+  // the bell tower: two tapering stages, the cross shaped ledge, the pointed openings with the bell, the two blades and the cross
+  const gt = Math.min(groundY(SG_TOWER[0] - 2, SG_TOWER[1]), groundY(SG_TOWER[0] + 2, SG_TOWER[1])) - 0.1, T = frame(SG_TOWER[0], gt, SG_TOWER[1], SG_TN[0], SG_TN[1]), white = '#ece6d6';
+  const taper = (ya, wa, da, yb, wb, db) => {
+    const at = (y, hw, hd) => [[-hw, hd], [hw, hd], [hw, -hd], [-hw, -hd]].map(([x, z]) => [x, y, z]);
+    gridMesh('sgConc', [at(ya, wa, da), at(yb, wb, db)], (i, j) => [j * 0.7, (i ? yb : ya) / 4], { wrap: true, M: T, c: white });
+    bx('sgConc', T, -wb, wb, yb - 0.1, yb, -db, db, { c: white });
+  };
+  taper(0, 2.45, 1.75, 15, 1.65, 1.3); taper(15, 1.6, 1.28, 19.7, 1.2, 1.0);
+  extrude('sgConc', poly([[-1.2, 0], [1.2, 0], [1.0, 2.1], [0.05, 3.3], [-0.1, 5.2], [-0.65, 5.2]]), 1.6, { M: mul(T, tr(0, 19.65, -0.8)), c: white });
+  bx('sgConc', T, -2.8, 2.8, 14.6, 15.5, -0.75, 0.75, { c: '#e6dfcc' }); bx('sgConc', T, -0.75, 0.75, 14.62, 15.48, -2.45, 2.45, { c: '#e6dfcc' });
+  const hole = poly([[-0.72, 0], [0.72, 0], [0.72, 1.35], [0, 2.15], [-0.72, 1.35]]);
+  for (const [a, half] of [[0, 1.22], [PI, 1.22], [PI / 2, 1.5], [-PI / 2, 1.5]]) {
+    const Mf = mul(T, rotY(a));
+    extrude('dark', hole, 0.3, { M: mul(Mf, tr(0, 15.55, half - 0.22)), c: '#3a332c', noao: true });
+    bx('dark', Mf, -0.7, 0.7, 16.85, 17.0, half + 0.06, half + 0.18, { c: '#4a3a28', noao: true });
+    cyl('dark', 0.17, 0.38, 0.75, 6, { M: mul(Mf, tr(0, 16.08, half + 0.14)), c: '#8a6a34', noao: true });
+  }
+  for (const y of [6.4, 11.2]) bx('dark', T, -0.14, 0.14, y, y + 1.4, 1.4, 1.75 - y * 0.03 + 0.05, { c: '#2c2824', noao: true });
+  cyl('flat', 0.5, 0.5, 0.12, 8, { M: mul(mul(T, tr(0, 9.4, 1.47)), new THREE.Matrix4().makeRotationX(PI / 2)), c: '#9aa6b4', noao: true });
+  bx('dark', T, -0.36, -0.24, 24.8, 26.4, -0.06, 0.06, { c: '#33291f', noao: true }); bx('dark', T, -0.7, 0.1, 25.75, 25.88, -0.06, 0.06, { c: '#33291f', noao: true });
+  // the garden north of it: two lamps with clusters of globes and a tall palm, behind the garden wall
+  for (const [x, z] of [[7660.5, 4252.5], [7663.5, 4259.5]]) {
+    const y = groundY(x, z);
+    box('dark', 0.14, 5.2, 0.14, { p: [x, y, z], c: '#8a8e90', noao: true });
+    for (const [dx, dy, dz] of [[0, 5.45, 0], [-0.75, 4.6, 0], [0.75, 4.6, 0], [0, 4.25, 0.7]]) { sphere('flat', 0.33, { p: [x + dx, y + dy, z + dz], seg: 6, c: '#f0e2a8', noao: true }); if (dx || dz) box('dark', Math.abs(dx) || 0.06, 0.06, Math.abs(dz) || 0.06, { p: [x + dx / 2, y + dy - 0.4, z + dz / 2], c: '#8a8e90', noao: true }); }
+  }
+  palm(7668.6, groundY(7668.6, 4250.5) - 0.2, 4250.5, 11);
+  const o = end('Chiesa di San Giuseppe, Villabate');
+  o.userData.solids = [[SG_TENT.flat(), null, eave], [SG_WING.flat(), null, wing]];
+  return o;
+}
+const sgW = toWorld(SG_TOWER, SG_TN);
+export const SAN_GIUSEPPE = {
+  name: 'Chiesa di San Giuseppe (Villabate)', x: 7664.5, z: 4300, radius: 55, skipIds: [GIUSEPPE.id], build: buildGiuseppe,
+  walls: [[-2.45, -1.75], [2.45, -1.75], [2.45, 1.75], [-2.45, 1.75]].map((q, i, r) => [...sgW(...q), ...sgW(...r[(i + 1) % 4])]),   // the foot of the freestanding tower
+};
 
 // ---------------------------------------------------------------------------------------------------
-// Palchetto della Musica: an octagonal bandstand on a low stone base, eight slim iron posts and a lead roof under a ball finial, in the garden of the corso.
+// Palchetto della Musica: the block of shops, the terrace with its ten columns (four on the north and south faces, three on the east and west, corners shared), the roof.
+// Frame E: the middle of the square on the ground, +z out of the east face, +x towards the north.
 // ---------------------------------------------------------------------------------------------------
+const PV_N = [0.928, 0.373];
+function paintPalchettoWall(g, w, h) {   // three faces side by side, 11 m each and 3.75 m tall: the east one, the north one, a plain one for the two sides no photo shows
+  const sx = w / 33, sy = h / 3.75, R = (x0, y0, x1, y1, c) => { g.fillStyle = c; g.fillRect(x0 * sx, h - y1 * sy, (x1 - x0) * sx, (y1 - y0) * sy); };
+  R(0, 0, 33, 3.75, '#ead7a4'); noiseDots(g, w, h, w * h / 50, 1.6, 1701, ['rgba(120,90,50,0.08)', 'rgba(255,250,230,0.09)']);
+  for (let j = 0, y = 0.42; y < 3.3; j++, y += 0.42) { R(0, y, 33, y + 0.05, 'rgba(110,80,40,0.4)'); for (let x = (j % 2) * 0.6; x < 33; x += 1.2) R(x, y, x + 0.05, y + 0.42, 'rgba(110,80,40,0.22)'); }
+  R(0, 0, 33, 0.42, '#b7a584'); R(0, 3.38, 33, 3.5, 'rgba(110,80,40,0.35)'); R(0, 3.5, 33, 3.75, '#f1e2b6');
+  const door = (x, sign) => {
+    R(x - 0.85, 0, x + 0.85, 2.7, '#d2bd8c'); R(x - 0.65, 0, x + 0.65, 2.5, '#2e2a28'); R(x - 0.6, 0.5, x - 0.04, 2.4, '#4a5258'); R(x + 0.04, 0.5, x + 0.6, 2.4, '#3c4248');
+    R(x - 1.05, 2.72, x + 1.05, 3.3, '#4a2c1e');
+    g.fillStyle = '#efe6d2'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `bold ${Math.round(0.34 * sy)}px sans-serif`; g.fillText(sign, x * sx, h - 3.01 * sy, 1.9 * sx);
+  };
+  door(2.3, 'LOTTO'); door(7.8, 'TABACCHI');
+  R(11.7, 1.15, 12.7, 3.0, '#cfc9ba'); for (let y = 1.4; y < 2.85; y += 0.2) R(11.82, y, 12.58, y + 0.04, '#8a847a');
+  door(14.3, 'FUMATORI'); door(17.0, 'TABACCHI'); door(19.8, '');   // the third board's lettering cannot be read in the photos
+  streaks(g, w, h, 40, 1702, 0.08, 36);
+}
 function buildPalchetto() {
   initShared();
-  const c = centre(pairsOf(PALCHETTO.p)), gy = groundRange(pairsOf(PALCHETTO.p)).hi + 0.05, R = 3.7;
-  begin(gy);
-  cyl('stone', R + 0.35, R + 0.55, 1.0, 8, { M: tr(c[0], gy, c[1]), c: '#cfc6b0' });
-  cyl('flat', R + 0.15, R + 0.15, 0.12, 8, { M: tr(c[0], gy + 1.0, c[1]), c: '#e2dac4' });
-  for (let i = 0; i < 8; i++) {
-    const a = (i + 0.5) / 8 * 2 * PI, x = c[0] + Math.cos(a) * (R - 0.2), z = c[1] + Math.sin(a) * (R - 0.2);
-    box('dark', 0.16, 3.6, 0.16, { p: [x, gy + 1.1, z], c: '#2e3a34', noao: true });
-    if (i % 2 === 0) box('dark', 0.9, 0.9, 0.06, { p: [x - Math.cos(a) * 0.1, gy + 1.1, z - Math.sin(a) * 0.1], ry: -a + PI / 2, c: '#2e3a34', noao: true });   // balustrade panels between the posts
+  const pts = pairsOf(PALCHETTO.p), c = centre(pts), gr = groundRange(pts), y0 = (gr.lo + gr.hi) / 2 - 0.15, hx = 5.39, hz = 5.5;
+  defMat('pvWall', 768, 128, [33, 3.75], paintPalchettoWall);
+  defMat('pvFringe', 64, 64, [0.8, 0.75], (g, w, h) => {   // the wooden edge of the roof: a moulding, brackets, a row of fretted pendants
+    g.clearRect(0, 0, w, h); g.fillStyle = '#8a5538'; g.fillRect(0, 0, w, 40); g.fillStyle = '#5c3624'; g.fillRect(0, 8, w, 3); g.fillRect(0, 36, w, 4);
+    g.fillStyle = '#c49a72'; for (let x = 3; x < w; x += 16) g.fillRect(x, 14, 8, 19);
+    g.fillStyle = '#7a4a30'; for (let x = 0; x < w; x += 16) { g.fillRect(x + 2, 40, 12, 9); g.beginPath(); g.arc(x + 8, 52, 6.5, 0, 2 * PI); g.fill(); g.fillRect(x + 6, 55, 4, 8); }
+  }, { alphaTest: 0.5, side: THREE.DoubleSide });
+  begin(y0);
+  const E = frame(c[0], y0, c[1], PV_N[0], PV_N[1]);
+  prism('flat', pts, Math.min(gr.lo, y0) - 0.8, y0 + 0.05, { c: '#8f8266' });
+  for (const [a, w, d, seg] of [[0, 2 * hx, hz, 0], [PI / 2, 2 * hz, hx, 1], [PI, 2 * hx, hz, 2], [-PI / 2, 2 * hz, hx, 2]]) panel('pvWall', w, 3.75, { M: mul(mul(E, rotY(a)), tr(0, 0, d)), uvk: [1 / 3, 1], uvo: [seg / 3, 0] });
+  bx('flat', E, -hx - 0.28, hx + 0.28, 3.75, 4.08, -hz - 0.28, hz + 0.28, { c: '#ecdcae' });   // the cornice that carries the terrace
+  const T = 4.08, cx = hx - 0.3, cz = hz - 0.3, zs = [-cz, -cz / 3, cz / 3, cz];
+  const cols = [...zs.flatMap(z => [[-cx, z], [cx, z]]), [0, -cz], [0, cz]];
+  for (const [x, z] of cols) {
+    bx('flat', E, x - 0.29, x + 0.29, T, T + 1.0, z - 0.29, z + 0.29, { c: '#dfc99a' });
+    bx('flat', E, x - 0.34, x + 0.34, T + 1.0, T + 1.12, z - 0.34, z + 0.34, { c: '#ead8ac' });
+    cyl('flat', 0.18, 0.23, 2.15, 8, { M: mul(E, tr(x, T + 1.12, z)), c: '#e2d0a8', noao: true });
+    bx('flat', E, x - 0.29, x + 0.29, T + 3.27, T + 3.47, z - 0.29, z + 0.29, { c: '#ead8ac' });
   }
-  cyl('lead', R + 0.2, R + 0.2, 0.25, 8, { M: tr(c[0], gy + 4.7, c[1]) });
-  cone('lead', R + 0.5, 1.9, 8, { M: tr(c[0], gy + 4.95, c[1]), c: '#8f9890' });
-  sphere('bronze', 0.3, { M: tr(c[0], gy + 6.95, c[1]), seg: 6, c: '#6a6a5a' });
-  return end('Palchetto della Musica, Villabate');
+  for (const s of [-1, 1]) {
+    bx('flat', E, s * cx - 0.2, s * cx + 0.2, T + 3.47, T + 3.75, -cz - 0.2, cz + 0.2, { c: '#b99a78' });
+    bx('flat', E, -cx + 0.2, cx - 0.2, T + 3.47, T + 3.75, s * cz - 0.2, s * cz + 0.2, { c: '#b99a78' });
+    for (let i = 0; i < 3; i++) rail(mul(mul(E, tr(s * cx, T, (zs[i] + zs[i + 1]) / 2)), rotY(PI / 2)), zs[i + 1] - zs[i] - 0.58, 1.0, { c: '#b8b8c0' });
+    for (const x of [-cx / 2, cx / 2]) rail(mul(E, tr(x, T, s * cz)), cx - 0.58, 1.0, { c: '#b8b8c0' });
+  }
+  // the roof: the fretted edge all round, the dark boards under it, the low pyramid, the iron finial
+  const rx = hx + 0.75, rz = hz + 0.75, Y = T + 3.9;
+  for (const [a, w, d] of [[0, 2 * rx, rz], [PI, 2 * rx, rz], [PI / 2, 2 * rz, rx], [-PI / 2, 2 * rz, rx]]) panel('pvFringe', w, 0.75, { M: mul(mul(E, rotY(a)), tr(0, Y - 0.6, d)), uvk: [Math.round(w / 0.8), 1] });
+  bx('dark', E, -rx + 0.03, rx - 0.03, Y - 0.02, Y + 0.1, -rz + 0.03, rz - 0.03, { c: '#6a5240', noao: true });
+  for (const s of [-1, 1]) box('dark', 0.14, 0.16, 2 * Math.hypot(cx, cz), { M: E, p: [0, Y - 0.2, 0], ry: s * Math.atan2(cx, cz), c: '#4a382a', noao: true });
+  pyramid('flat', 2 * rx + 0.1, 2 * rz + 0.1, 1.35, { M: mul(E, tr(0, Y + 0.1, 0)), c: '#69625c', noao: true });
+  const P = Y + 1.35;
+  box('dark', 0.13, 2.1, 0.13, { M: E, p: [0, P, 0], c: '#3c3834', noao: true });
+  for (let k = 0; k < 4; k++) { const M = mul(mul(E, tr(0, P + 0.15, 0)), rotY(k * PI / 2)); part('dark', new THREE.TorusGeometry(0.46, 0.06, 3, 7, PI), { M: mul(M, tr(0.45, 0, 0)), c: '#3c3834', noao: true }); part('dark', new THREE.TorusGeometry(0.22, 0.05, 3, 6, PI * 1.5), { M: mul(M, tr(0.22, 0.55, 0)), c: '#3c3834', noao: true }); }
+  const o = end('Palchetto della Musica, Villabate');
+  o.userData.solids = [[PALCHETTO.p, null, y0 + 3.75]];   // the shops; the terrace is open
+  return o;
 }
 export const PALCHETTO_VB = { name: 'Palchetto della Musica (Villabate)', x: centre(pairsOf(PALCHETTO.p))[0], z: centre(pairsOf(PALCHETTO.p))[1], radius: 15, skipIds: [PALCHETTO.id], build: buildPalchetto };
 
 // ---------------------------------------------------------------------------------------------------
 // Duomo di Monreale. The OSM footprint w82665029 is the church alone, a rectangle of about 88 by 43 m whose long axis runs east-north-east (the west front looks over Piazza Guglielmo II
-// to the west-south-west) and a rounded east end. Frame FF: origin at the middle of the west front on the ground, local +z towards the west (out of the front), local +x towards the
-// south; the nave runs along -z.
+// to the west-south-west) and a rounded east end. Positions below are (u, v): u metres east along the nave from the middle of the west front, v metres north of its axis.
+// Frame FF: origin at the middle of the west front at floor level, local +z towards the west (out of the front), local +x towards the south: x = -v, z = -u.
 // ---------------------------------------------------------------------------------------------------
 const DUOMO = { id: 'w82665029', p: [-6090, 3716.4, -6082.7, 3738.1, -6076.5, 3757.6, -6023.7, 3739.4, -6022.9, 3741.5, -5993.5, 3731.5, -5998.5, 3715.6, -5995, 3714.1, -5995.9, 3712, -5992.8, 3709, -5992.7, 3705.6, -5994, 3702.3, -5996.4, 3701, -5999.4, 3700.9, -6001, 3701.2, -6002, 3699.2, -6006.4, 3701, -6010.5, 3690.9, -6020.3, 3694.4, -6035.3, 3699.8, -6041.7, 3700] };
 const DU_AXIS = [0.949, -0.316];   // from the north-west corner (-6090, 3716.4) to the south-west corner (-6076.5, 3757.6) is 43.4 m: the front; the nave runs along this axis
+const DU_F = [(-6090 + -6076.5) / 2, (3716.4 + 3757.6) / 2];
+const duUV = (u, v) => [DU_F[0] + DU_AXIS[0] * u + DU_AXIS[1] * v, DU_F[1] + DU_AXIS[1] * u - DU_AXIS[0] * v];
+const DU_APSES = { c: [88.8, 1.2, 6.9], n: [84.2, 14.6, 5.2], s: [86.8, -14, 5.2] };   // u, v, radius
+const DU_STONE = '#c2ab84', DU_JOINT = '#8b7b62';
+// a pointed arch of inlaid stone on the canvas: a dark line, the tufa moulding, a dotted pale inlay
+function inlayArch(g, xa, xb, ys, ya, t) {
+  const xm = (xa + xb) / 2, rise = ys - ya;
+  const path = () => { g.beginPath(); g.moveTo(xa, ys); g.bezierCurveTo(xa, ys - rise * 0.6, xm - (xm - xa) * 0.35, ya + rise * 0.12, xm, ya); g.bezierCurveTo(xm + (xb - xm) * 0.35, ya + rise * 0.12, xb, ys - rise * 0.6, xb, ys); };
+  path(); g.strokeStyle = '#54453a'; g.lineWidth = t; g.setLineDash([]); g.stroke();
+  path(); g.strokeStyle = '#d0b28a'; g.lineWidth = t * 0.66; g.stroke();
+  path(); g.strokeStyle = '#463a32'; g.lineWidth = t * 0.26; g.setLineDash([t * 0.4, t * 0.45]); g.stroke(); g.setLineDash([]);
+}
+function roundel(g, x, y, r) {
+  for (const [k, c] of [[1, '#52443a'], [0.8, '#e6dcc2'], [0.58, '#7a5a44'], [0.34, '#ece2c8'], [0.15, '#40342c']]) { g.fillStyle = c; g.beginPath(); g.ellipse(x, y, r * k, r * k * 0.85, 0, 0, 2 * PI); g.fill(); }
+  g.fillStyle = '#e6dcc2'; for (let a = 0; a < 8; a++) g.fillRect(x + Math.cos(a * PI / 4) * r * 0.46 - 1, y + Math.sin(a * PI / 4) * r * 0.39 - 1, 2, 2);
+}
+function paintApse(g, w, h) {   // one bay of the east end, 4.7 m wide and the whole height: foot, blind arches interlaced, band, a second order on colonnettes, band, a small arcade, corbels
+  const Y = f => h * (1 - f), R = (x0, f0, x1, f1, c) => { g.fillStyle = c; g.fillRect(x0 * w, Y(f1), (x1 - x0) * w, (f1 - f0) * h); };
+  R(0, 0, 1, 1, '#c3a27a'); paintAshlar(g, w, h, 4.7, 34, 0.55, 1.0, '#c2a27c', '#957a5c', 1801, 1, 0.08);
+  R(0, 0, 1, 0.035, '#8d7a60');
+  const panelArch = (x0, x1, f0, f1, c) => { g.fillStyle = c; g.beginPath(); g.moveTo(x0 * w, Y(f0)); g.lineTo(x0 * w, Y(f1 - 0.035)); g.quadraticCurveTo(x0 * w, Y(f1 - 0.008), (x0 + x1) / 2 * w, Y(f1)); g.quadraticCurveTo(x1 * w, Y(f1 - 0.008), x1 * w, Y(f1 - 0.035)); g.lineTo(x1 * w, Y(f0)); g.fill(); };
+  const column = (x, f0, f1) => { R(x - 0.05, f0, x + 0.05, f1, '#e2d4b6'); R(x - 0.014, f0, x + 0.014, f1, '#6a584a'); R(x - 0.085, f1 - 0.008, x + 0.085, f1 + 0.004, '#8f765c'); };
+  panelArch(0.22, 0.78, 0.05, 0.285, '#6e5a48'); panelArch(0.26, 0.74, 0.05, 0.275, '#d2c1a0'); panelArch(0.36, 0.64, 0.05, 0.245, '#c4ad88');
+  roundel(g, w * 0.5, Y(0.19), w * 0.15); R(0.34, 0.095, 0.66, 0.14, '#8a7258'); R(0.37, 0.103, 0.63, 0.132, '#cdb794'); for (let i = 0; i < 5; i++) R(0.39 + i * 0.05, 0.108, 0.41 + i * 0.05, 0.127, '#4a3c32');
+  for (const x of [0, 1]) column(x, 0.035, 0.265);
+  for (const k of [-1, 0, 1]) inlayArch(g, k * w, (k + 1.5) * w, Y(0.265), Y(0.392), w * 0.095);
+  roundel(g, w * 0.5, Y(0.325), w * 0.14); roundel(g, 0, Y(0.378), w * 0.09); roundel(g, w, Y(0.378), w * 0.09);
+  const band = (f0, f1) => { R(0, f0, 1, f1, '#d6c29c'); const n = 14; for (let i = 0; i < n; i++) { R(i / n, f0 + (f1 - f0) * 0.18, (i + 0.5) / n, f0 + (f1 - f0) * 0.5, '#43362e'); R((i + 0.5) / n, f0 + (f1 - f0) * 0.5, (i + 1) / n, f0 + (f1 - f0) * 0.82, '#43362e'); } R(0, f1 - 0.004, 1, f1, '#efe4c8'); R(0, f0 - 0.004, 1, f0, '#6a584a'); };
+  band(0.4, 0.44);
+  panelArch(0.24, 0.76, 0.455, 0.655, '#6e5a48'); panelArch(0.285, 0.715, 0.46, 0.645, '#dccdac');
+  R(0.285, 0.545, 0.715, 0.557, '#6a584a'); roundel(g, w * 0.5, Y(0.512), w * 0.13); roundel(g, w * 0.5, Y(0.596), w * 0.1);
+  for (const x of [0, 0.13, 0.87, 1]) column(x, 0.44, 0.635);
+  for (const k of [-1, 0, 1]) inlayArch(g, k * w, (k + 1.5) * w, Y(0.635), Y(0.755), w * 0.09);
+  roundel(g, w * 0.5, Y(0.695), w * 0.12); roundel(g, 0, Y(0.742), w * 0.09); roundel(g, w, Y(0.742), w * 0.09);
+  band(0.765, 0.8);
+  for (const x of [0.25, 0.75]) { panelArch(x - 0.13, x + 0.13, 0.815, 0.893, '#e2d6bc'); roundel(g, w * x, Y(0.84), w * 0.075); }
+  for (const x of [0, 0.5, 1]) column(x, 0.8, 0.872);
+  for (let k = -1; k < 3; k++) inlayArch(g, k * w / 2, (k + 1.5) * w / 2, Y(0.872), Y(0.935), w * 0.06);
+  band(0.945, 0.968);
+  for (let i = 0; i < 9; i++) R(i / 9 + 0.02, 0.972, i / 9 + 0.06, 0.99, '#4e4034'); R(0, 0.99, 1, 1, '#dcc9a4');
+  streaks(g, w, h, 14, 1802, 0.14, 120, '50,36,26');
+}
+function paintDuFront(g, w, h) {   // the wall over the porch, 21 m wide from 12.2 to 26 m: pinkish tufa, interlaced arches, the middle window, the gable with its roundels
+  const sx = w / 21, sy = h / 13.8, X = x => (x + 10.5) * sx, Y = y => h - (y - 12.2) * sy;
+  paintAshlar(g, w, h, 21, 13.8, 0.45, 0.9, '#bd9a7c', '#93765c', 1811, 1, 0.07);
+  for (let x = -12.6; x < 10.5; x += 2.1) inlayArch(g, X(x), X(x + 3.15), Y(16.4), Y(20.1), 0.3 * sx);
+  for (let x = -10.5; x < 11; x += 2.1) { g.fillStyle = '#dccbac'; g.fillRect(X(x) - 0.1 * sx, Y(16.4), 0.2 * sx, 4.2 * sy); roundel(g, X(x + 1.05), Y(15.6), 0.45 * sx); }
+  const win = (r, y1, c) => { g.fillStyle = c; g.beginPath(); g.moveTo(X(-r), Y(12.2)); g.lineTo(X(-r), Y(y1 - r)); g.arc(X(0), Y(y1 - r), r * sx, PI, 0); g.lineTo(X(r), Y(12.2)); g.fill(); };
+  win(3.1, 19.7, '#d6bc96'); win(2.65, 19.25, '#6a5242'); win(2.3, 18.9, '#cdb08a'); win(1.65, 18.25, '#2a2420');
+  g.strokeStyle = '#6e6052'; g.lineWidth = 2; for (let x = -1.1; x < 1.2; x += 0.55) { g.beginPath(); g.moveTo(X(x), Y(12.2)); g.lineTo(X(x), Y(17.5)); g.stroke(); }
+  const band = (y0, y1) => { g.fillStyle = '#d9c4a2'; g.fillRect(0, Y(y1), w, (y1 - y0) * sy); g.fillStyle = '#4a3a30'; for (let x = 0; x < w; x += 12) g.fillRect(x, Y(y1 - 0.18), 6, (y1 - y0 - 0.36) * sy); };
+  band(20.35, 21.05);
+  g.fillStyle = '#c7a488'; g.beginPath(); g.moveTo(X(-10.5), Y(21.05)); g.lineTo(X(0), Y(25.8)); g.lineTo(X(10.5), Y(21.05)); g.fill();
+  roundel(g, X(-2.5), Y(22.4), 0.9 * sx); roundel(g, X(2.5), Y(22.4), 0.9 * sx); roundel(g, X(0), Y(22.9), 1.15 * sx);
+  streaks(g, w, h, 30, 1812, 0.1, 70);
+}
+// one face of a tower: ashlar, then the windows [x, y0, width, height, kind] in metres (x from the middle), string courses with their inlay
+function paintTower(g, w, h, Wm, Hm, wins, bands, seed) {
+  const sx = w / Wm, sy = h / Hm, X = x => (x + Wm / 2) * sx, Y = y => h - y * sy;
+  paintAshlar(g, w, h, Wm, Hm, 0.55, 1.1, '#bb9f76', '#8e775a', seed, 1, 0.11);
+  noiseDots(g, w, h, w * h / 40, 3, seed + 2, ['rgba(80,55,30,0.16)', 'rgba(235,210,165,0.10)']);
+  for (const y of bands) { g.fillStyle = '#d4bd94'; g.fillRect(0, Y(y + 0.35), w, 0.7 * sy); g.fillStyle = '#54453a'; for (let x = 0; x < w; x += 8) g.fillRect(x, Y(y + 0.12), 4, 0.24 * sy); }
+  const arch = (x, y, ww, hh, c) => { const r = ww / 2; g.fillStyle = c; g.beginPath(); g.moveTo(X(x - r), Y(y)); g.lineTo(X(x - r), Y(y + hh - r)); g.arc(X(x), Y(y + hh - r), r * sx, PI, 0); g.lineTo(X(x + r), Y(y)); g.fill(); };
+  for (const [x, y, ww, hh, kind] of wins) {
+    if (kind === 'rect') { g.fillStyle = '#d0b992'; g.fillRect(X(x - ww / 2 - 0.2), Y(y + hh + 0.2), (ww + 0.4) * sx, (hh + 0.4) * sy); g.fillStyle = '#1d1712'; g.fillRect(X(x - ww / 2), Y(y + hh), ww * sx, hh * sy); }
+    else if (kind === 'blind') { arch(x, y, ww + 0.7, hh + 0.35, '#cfb48c'); arch(x, y, ww, hh, '#a4875f'); }
+    else { arch(x, y, ww + 0.8, hh + 0.4, '#ccb28a'); arch(x, y, ww + 0.35, hh + 0.18, '#7d674c'); arch(x, y, ww, hh, '#17110d'); }
+  }
+  streaks(g, w, h, 26, seed + 1, 0.13, 90);
+}
 function buildDuomo() {
   initShared();
-  const pts = pairsOf(DUOMO.p), gr = groundRange(pts), gy = gr.hi + 0.1;
-  const ax = DU_AXIS[0], az = DU_AXIS[1];
-  const F0 = [(-6090 + -6076.5) / 2, (3716.4 + 3757.6) / 2], W = 43.4, L = 88, E = 22, RISE = 4.2;   // E: eave height (OSM says 22.3, a church default), RISE of the low tiled roof
-  const FF = frame(F0[0], gy, F0[1], -ax, -az);                      // faces the west, x to the south
-  const stone = '#c2ab84', joint = '#8b7b62';
+  const pts = pairsOf(DUOMO.p), ax = DU_AXIS[0], az = DU_AXIS[1], W = 43.4, E = 21;
+  const y0 = groundY(...duUV(0, 3)) + 0.2;   // the floor: the ground in the middle of the front
+  const FF = frame(DU_F[0], y0, DU_F[1], -ax, -az);                      // faces the west, x to the south
   // the long walls: three registers in a bay of 5.5 m (the arcade of the north portico at the foot, blind arches, pointed windows under the eaves)
-  facadeMat('duoWall', 5.5, E, { base: stone, ashlar: { base: stone, joint, course: 0.42, block: 0.95, seed: 1401, jw: 1.6, vary: 0.05 }, trim: '#d9c7a0', glass: '#1d1914', seed: 1402, grime: 1,
+  facadeMat('duoWall', 5.5, 22, { base: DU_STONE, ashlar: { base: DU_STONE, joint: DU_JOINT, course: 0.42, block: 0.95, seed: 1401, jw: 1.6, vary: 0.05 }, trim: '#d9c7a0', glass: '#1d1914', seed: 1402, grime: 1,
     bands: [{ y: 9.6, h: 0.5, c: '#d2bd94' }, { y: 15.2, h: 0.45, c: '#d2bd94' }, { y: 21.2, h: 0.8, c: '#cdb68c' }],
     rows: [{ y0: 0.4, y1: 8.4, xs: [2.75], w: 2.9, kind: 'arch', fr: 0.2, sill: false, glass: '#5a4a38' }, { y0: 10.6, y1: 13.8, xs: [1.45, 4.05], w: 1.9, kind: 'arch', fr: 0.15, sill: false, glass: '#4b3f30' },
       { y0: 16.4, y1: 20.4, xs: [2.75], w: 1.3, kind: 'point', fr: 0.16, sill: false }] }, 36);
-  facadeMat('duoFront', 21, 27, { base: stone, ashlar: { base: stone, joint, course: 0.42, block: 0.95, seed: 1403, jw: 1.6, vary: 0.05 }, trim: '#d9c7a0', glass: '#1d1914', seed: 1404, grime: 1,
-    bands: [{ y: 9.6, h: 0.55, c: '#d2bd94' }, { y: 16.2, h: 0.5, c: '#d2bd94' }, { y: 21.6, h: 0.7, c: '#cdb68c' }],
-    rows: [{ y0: 0.4, y1: 8.8, xs: [3.8, 10.5, 17.2], w: 4.2, kind: 'arch', fr: 0.25, sill: false, glass: '#4a3c2c' }, { y0: 11, y1: 15, xs: [3.8, 7.2, 13.8, 17.2], w: 1.8, kind: 'arch', fr: 0.15, sill: false, glass: '#4b3f30' },
-      { y0: 17.4, y1: 23.2, xs: [10.5], w: 3.0, kind: 'point', fr: 0.25, sill: false }] }, 36);
-  facadeMat('duoTower', 11, 40, { base: stone, ashlar: { base: '#b9a27c', joint, course: 0.42, block: 0.95, seed: 1405, jw: 1.6, vary: 0.06 }, trim: '#d2bd94', glass: '#15110d', seed: 1406, grime: 1,
-    bands: [{ y: 12.5, h: 0.5, c: '#cdb68c' }, { y: 22, h: 0.5, c: '#cdb68c' }, { y: 31, h: 0.7, c: '#cdb68c' }, { y: 36.6, h: 0.6, c: '#cdb68c' }],
-    rows: [{ y0: 4, y1: 8, xs: [5.5], w: 1.0, kind: 'point', fr: 0.1, sill: false }, { y0: 15, y1: 19, xs: [3.4, 7.6], w: 0.9, kind: 'point', fr: 0.1, sill: false },
-      { y0: 24, y1: 29, xs: [5.5], w: 1.3, kind: 'point', fr: 0.14, sill: false }, { y0: 32, y1: 36, xs: [3.4, 7.6], w: 1.5, kind: 'point', fr: 0.14, sill: false, glass: '#0d0a08' }] }, 24);
+  defMat('duoApse', 160, 640, [4.7, 34], paintApse);
+  defMat('duoFront', 512, 336, [21, 13.8], paintDuFront);
+  defMat('duoTowerN', 192, 448, [11.2, 25.6], (g, w, h) => paintTower(g, w, h, 11.2, 25.6,
+    [[-1.2, 3.6, 0.35, 2.4, 'rect'], [2.4, 7.2, 0.35, 1.8, 'rect'], [0, 13.4, 1.4, 3.4, 'arch'], ...[-3.6, -1.2, 1.2, 3.6].map(x => [x, 22.4, 1.1, 2.1, 'arch'])], [11.5, 21.6, 25.2], 1821));
+  defMat('duoTowerS', 176, 608, [11.2, 38], (g, w, h) => paintTower(g, w, h, 11.2, 38,
+    [[-0.6, 3.4, 1.3, 1.6, 'rect'], [1.6, 8.0, 0.9, 1.1, 'rect'], [0, 14.2, 1.5, 4.4, 'arch'], [0, 23.2, 3.0, 5.2, 'arch'], [0, 31.0, 5.2, 5.6, 'blind'], [-1.05, 31.2, 1.55, 3.8, 'arch'], [1.05, 31.2, 1.55, 3.8, 'arch']], [11.5, 22, 30, 37.4], 1831));
   defMat('duoClock', 128, 128, [1, 1], (g, w, h) => {
     g.fillStyle = '#c9b48c'; g.fillRect(0, 0, w, h); g.fillStyle = '#e8dfc8'; g.beginPath(); g.arc(w / 2, h / 2, w * 0.46, 0, 2 * PI); g.fill();
     g.strokeStyle = '#3b3328'; g.lineWidth = 4; g.stroke(); g.fillStyle = '#3b3328';
     for (let i = 0; i < 12; i++) { const a = i / 12 * 2 * PI; g.fillRect(w / 2 + Math.sin(a) * w * 0.38 - 2, h / 2 - Math.cos(a) * w * 0.38 - 2, 4, 4); }
     g.lineWidth = 5; g.beginPath(); g.moveTo(w / 2, h / 2); g.lineTo(w / 2 + 14, h / 2 - 30); g.stroke(); g.lineWidth = 3; g.beginPath(); g.moveTo(w / 2, h / 2); g.lineTo(w / 2 - 36, h / 2 + 6); g.stroke();
   });
-  begin(gy);
-  if (gr.lo < gy - 0.2) prism('stone', pts, gr.lo - 1.5, gy, { c: '#e4d3ae' });
-  prism('duoWall', pts, gy, gy + E, { uvo: [0, -gy / E] });
-  prism('flat', pts, gy + E, gy + E + 0.2, { c: '#9a8a70' });
-  // the roof over the whole width: a low gable along the nave, tiles
-  const Mr = frame(F0[0] + ax * (L / 2), gy + E, F0[1] + az * (L / 2), ax, az);
-  gable('tile', 'duoWall', Mr, W + 0.4, L, 0.2, RISE, { ov: 0.3, c: '#b87a58', wc: '#b9a27c' });
-  // the east end: three apses, the middle one higher, with half-domes of tile
-  const AX = (u, x) => [F0[0] + ax * u + az * x, F0[1] + az * u - ax * x];   // the point u metres along the nave from the middle of the front and x metres to the north of its axis
-  const mid = AX(L - 1, 0);
-  cyl('duoWall', 8.2, 8.2, E - 4, 14, { p: [mid[0], gy, mid[1]] });
-  cone('tile', 8.9, 4.6, 14, { p: [mid[0], gy + E - 4, mid[1]], c: '#b87a58' });
-  for (const sx of [-1, 1]) { const q = AX(L - 3, sx * 14.5); cyl('duoWall', 4.6, 4.6, E - 9, 10, { p: [q[0], gy, q[1]] }); cone('tile', 5.2, 3.2, 10, { p: [q[0], gy + E - 9, q[1]], c: '#b87a58' }); }
-  // the west front: a panel on the front between the towers, standing 0.1 m proud of the wall, with the gable of the roof over it
-  const FP = mul(FF, tr(0, 0, 0.08));
-  panel('duoFront', 21, 24.2, { M: FP, uvk: [1, 24.2 / 27] });
-  const sh = new THREE.Shape(); sh.moveTo(-W / 2 + 11.3, 0); sh.lineTo(W / 2 - 11.3, 0); sh.lineTo(0, RISE + 1.2); sh.lineTo(-W / 2 + 11.3, 0);
-  part('flat', new THREE.ExtrudeGeometry(sh, { depth: 0.7, bevelEnabled: false }), { M: mul(FF, tr(0, 24.0, -0.2)), c: '#c2ab84' });
-  bx('flat', FF, -10.7, 10.7, 23.6, 24.2, -0.2, 0.55, { c: '#d2bd94' });
-  for (let i = 0; i < 4; i++) bx('stone', FF, -9 + i * 0.15, 9 - i * 0.15, 0, 0.5 - i * 0.12, 0.2 + i * 0.35, 1.7 - i * 0.2, { c: '#c9c2b0' });   // steps
-  // the towers: north (the clock) and south, 11 m square, each a shaft with four faces, a cornice, the belfry, battlements
-  const tower = (x, hShaft, hCrown, clock) => {
-    const T = mul(FF, tr(x, 0, -5.5)), TW = 11;
-    for (const a of [0, PI / 2, PI, -PI / 2]) panel('duoTower', TW, hShaft, { M: mul(mul(T, new THREE.Matrix4().makeRotationY(a)), tr(0, 0, TW / 2 + 0.03)), uvk: [1, hShaft / 40] });
-    box('flat', TW - 0.4, hShaft, TW - 0.4, { M: T, p: [0, 0, 0], c: '#b9a27c', noao: true });
-    bx('flat', T, -TW / 2 - 0.4, TW / 2 + 0.4, hShaft - 0.9, hShaft + 0.4, -TW / 2 - 0.4, TW / 2 + 0.4, { c: '#cdb68c' });   // the cornice under the battlements
-    for (let i = 0; i < 6; i++) for (const [fx, fz] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {   // merlons round the top
-      const t = (i + 0.5) / 6 * (TW + 0.6) - (TW + 0.6) / 2; bx('flat', T, fx ? fx * (TW / 2 + 0.2) - 0.35 : t - 0.45, fx ? fx * (TW / 2 + 0.2) + 0.35 : t + 0.45, hShaft + 0.4, hShaft + 1.9, fz ? fz * (TW / 2 + 0.2) - 0.35 : t - 0.45, fz ? fz * (TW / 2 + 0.2) + 0.35 : t + 0.45, { c: '#c2ab84', noao: true });
+  begin(y0);
+  const low = (...q) => Math.min(...q.map(p => groundY(...p))) - 0.4;
+  // ---- the walls, bay by bay down to the ground under each; where that is far below the floor an arcade stands on it under the three registers
+  const sg = turn(pts);
+  const flank = (a, b) => {
+    const pa = duUV(...a), pb = duUV(...b), l = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]), n = Math.max(1, Math.round(l / 5.5));
+    for (let i = 0; i < n; i++) {
+      const p = [0, 1].map(k => pa[k] + (pb[k] - pa[k]) * i / n), q = [0, 1].map(k => pa[k] + (pb[k] - pa[k]) * (i + 1) / n), g = low(p, q, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]);
+      if (g < y0 - 4) { wall('duoWall', p, q, g, y0, sg, { uvk: [1, 9.6 / 22] }); wall('duoWall', p, q, y0, y0 + E, sg); } else wall('duoWall', p, q, g, y0 + E, sg);
     }
-    if (hCrown > hShaft) { bx('flat', T, -2, 2, hShaft + 0.4, hCrown, -2, 2, { c: '#b9a27c' }); bx('dark', T, -0.7, 0.7, hCrown - 3.4, hCrown - 1.2, 1.95, 2.05, { c: '#15110d', noao: true }); }   // a bell stage over the battlements
-    if (clock) panel('duoClock', 3.6, 3.6, { M: mul(mul(T, new THREE.Matrix4().makeRotationY(-PI / 2)), tr(0, hShaft - 8.6, TW / 2 + 0.07)), noao: true });   // on the face looking north
   };
-  tower(-16.2, 36.5, 40, true);
-  tower(16.2, 33, 0, false);
-  return end('Duomo di Monreale');
+  flank([11, -21.5], [55.8, -21.1]); flank([55.8, -21.1], [55.9, -23.3]); flank([55.9, -23.3], [86.9, -23.1]);
+  flank([83.6, 20.8], [73.2, 20.5]); flank([73.2, 20.5], [57.3, 20.2]); flank([57.3, 20.2], [51.1, 22]); flank([51.1, 22], [11, 21.8]);
+  // the walls beside the apses carry the same arches as they do
+  for (const [a, b] of [[[86.9, -23.1], [87, -6.4]], [[87, -6.4], [87.2, 10.2]], [[87.2, 10.2], [84.3, 10]], [[84.3, 10], [83.6, 20.8]]]) {
+    const pa = duUV(...a), pb = duUV(...b);
+    wall('duoApse', pa, pb, low(pa, pb), y0 + E, sg, { uvk: [Math.max(1, Math.round(Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) / 4.7)), 1] });
+  }
+  // ---- the apses: half drums from the ground, their cornices standing out between the orders, colonnettes between the bays, tiled half cones
+  const apse = ([u, v, r], top, bays) => {
+    const T0 = -PI / 2 - 0.16, TL = PI + 0.32, seg = bays * 3, c = duUV(u, v);
+    const base = low(...[-1.57, -0.8, 0, 0.8, 1.57].map(a => duUV(u + Math.cos(a) * r, v + Math.sin(a) * r))), hh = top - base;
+    const M = frame(c[0], base, c[1], ax, az);
+    cyl('duoApse', r, r, hh, seg, { M, open: true, t0: T0, tl: TL, uvk: [bays, 1], noao: true });
+    for (const [f0, d, o] of [[0.402, 0.036, 0.28], [0.766, 0.032, 0.22], [0.968, 0.034, 0.34]]) {
+      cyl('flat', r + o, r + o, hh * d, seg, { M: mul(M, tr(0, hh * f0, 0)), open: true, t0: T0, tl: TL, c: '#c9ac84', noao: true });
+      const ring = new THREE.RingGeometry(r - 0.05, r + o, seg, 1, T0 - PI / 2, TL); ring.rotateX(PI / 2);
+      part('flat', ring, { M: mul(M, tr(0, hh * f0, 0)), c: '#7d6850', noao: true });
+    }
+    for (let k = 1; k < bays; k++) {
+      const Mk = mul(M, rotY(T0 + TL * k / bays));
+      for (const [f0, f1] of [[0.035, 0.265], [0.44, 0.635]]) bx('flat', Mk, -0.16, 0.16, hh * f0, hh * f1, r - 0.05, r + 0.2, { c: '#d6c3a0', noao: true });
+    }
+    const rh = r * 0.42, roof = new THREE.ConeGeometry(r + 0.3, rh, seg, 1, true, T0, TL); roof.translate(0, rh / 2, 0);
+    part('lead', roof, { M: mul(M, tr(0, hh, 0)), c: '#b09c84', noao: true });
+    return { M, hh };
+  };
+  const mid = apse(DU_APSES.c, y0 + E + 1.6, 5);
+  const midH = mid.hh;
+  for (const [key, w, h, z, col] of [['flat', 3.0, 6.3, 0.0, '#d9c4a0'], ['dark', 2.1, 5.5, 0.06, '#2a211a']]) extrude(key, pointed(w, h), 0.2, { M: mul(mid.M, tr(0, midH * 0.475, DU_APSES.c[2] - 0.08 + z)), c: col, noao: true });
+  for (const k of ['n', 's']) { const c = duUV(DU_APSES[k][0] + DU_APSES[k][2], DU_APSES[k][1]); apse(DU_APSES[k], Math.min(y0 + E - 2.5, groundY(...c) + midH * 0.76), 4); }
+  // ---- the roofs: the cap, the nave under its low gable, the aisles' slopes, the raised presbytery under glazed tiles
+  prism('flat', [[7, 21.6], [7, -21.4], [55.8, -21.1], [55.9, -23.3], [86.9, -23.1], [87.1, 10.2], [84.3, 10], [83.6, 20.8], [73.2, 20.5], [57.3, 20.2], [51.1, 22]].map(q => duUV(...q)), y0 + E - 0.1, y0 + E + 0.1, { c: '#9a8a70' });
+  const along = (u, y) => frame(...(() => { const p = duUV(u, 0); return [p[0], y0 + y, p[1]]; })(), ax, az);
+  bx('tufa', along(32, E), -9.8, 9.8, 0, 0.9, -25, 25, { c: '#c9ab82' });
+  gable('lead', 'tufa', along(32, E + 0.9), 19.6, 50, 0, 3.6, { ov: 0.35, c: '#ad9a80', wc: '#c9ab82' });
+  for (const s of [-1, 1]) box('lead', 11.6, 0.2, 45, { M: along(33.5, E + 0.5), p: [s * 15.5, 0, 0], rz: -s * 0.055, c: '#a69880', noao: true });
+  bx('tufa', along(70.6, E), -10.6, 10.6, 0, 3.4, -13.6, 13.6, { c: '#c9ab82' });
+  gable('lead', 'tufa', along(70.6, E + 3.4), 21.2, 27.2, 0, 3.4, { ov: 0.4, c: '#8c9674', wc: '#c9ab82' });
+  // ---- the towers: faces carried down to their own ground, cornices, the crowns
+  const TW = 11.2;
+  const faces = (T, key, w, ya, yb, texH, uw = 1) => { for (const a of [0, PI / 2, PI, -PI / 2]) panel(key, w, yb - ya, { M: mul(mul(T, rotY(a)), tr(0, ya, w / 2)), uvk: [uw, (yb - Math.max(0, ya)) / texH], uvo: [(1 - uw) / 2, Math.max(0, ya) / texH] }); };
+  const cornice = (T, w, y, c = '#d2bd94') => bx('flat', T, -w / 2 - 0.35, w / 2 + 0.35, y, y + 0.5, -w / 2 - 0.35, w / 2 + 0.35, { c });
+  const tower = (x, key, texH) => {
+    const T = mul(FF, tr(x, 0, -TW / 2 - 0.02));
+    const g = low(...[[-1, 0], [1, 0], [-1, 1], [1, 1], [0, 0]].map(([s, d]) => duUV(d * TW, -x + s * TW / 2))) - y0;
+    faces(T, key, TW, g, 11.5, texH); cornice(T, TW, 11.3);
+    return T;
+  };
+  const N = tower(-16.1, 'duoTowerN', 25.6);
+  faces(N, 'duoTowerN', TW, 11.5, 25.6, 25.6); cornice(N, TW, 25.3);
+  bx('flat', N, -TW / 2 + 0.2, TW / 2 - 0.2, 25.3, 25.7, -TW / 2 + 0.2, TW / 2 - 0.2, { c: '#9a8668' });
+  for (let i = 0; i < 6; i++) for (const [fx, fz] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {   // merlons round the top, a notch in each
+    const t = (i + 0.5) / 6 * (TW + 0.5) - (TW + 0.5) / 2, a = fx ? fx * (TW / 2) : t, b = fz ? fz * (TW / 2) : t;
+    bx('flat', N, a - (fx ? 0.3 : 0.55), a + (fx ? 0.3 : 0.55), 25.8, 26.8, b - (fz ? 0.3 : 0.55), b + (fz ? 0.3 : 0.55), { c: '#c2a880', noao: true });
+    pyramid('flat', fx ? 0.6 : 0.6, 0.6, 0.55, { M: mul(N, tr(a, 26.8, b)), c: '#b89e76', noao: true });
+  }
+  bx('tufa', N, -5.2, -2.0, 25.7, 29.0, -4.6, -2.6, { c: '#c4a87e' }); pyramid('flat', 3.5, 2.3, 0.9, { M: mul(N, tr(-3.6, 29.0, -3.6)), c: '#b89e76' });   // the little bell gable on the north corner
+  bx('dark', N, -4.2, -3.0, 26.9, 28.5, -2.62, -2.55, { c: '#1d1712', noao: true });
+  bx('dark', N, -3.65, -3.55, 29.8, 31.2, -3.65, -3.55, { c: '#3a342e', noao: true }); bx('dark', N, -4.0, -3.2, 30.6, 30.72, -3.65, -3.55, { c: '#3a342e', noao: true });
+  panel('duoClock', 3.0, 3.0, { M: mul(mul(N, rotY(-PI / 2)), tr(0, 17.8, TW / 2 + 0.07)), noao: true });   // on the face looking north
+  const S = tower(16.1, 'duoTowerS', 38), SU = 9.6;
+  faces(S, 'duoTowerS', TW, 11.5, 22, 38); cornice(S, TW, 21.8);
+  faces(S, 'duoTowerS', SU, 22, 30, 38, SU / TW); cornice(S, SU, 29.8);
+  faces(S, 'duoTowerS', SU, 30, 37.6, 38, SU / TW); cornice(S, SU, 37.3);
+  bx('flat', S, -SU / 2, SU / 2, 37.4, 37.9, -SU / 2, SU / 2, { c: '#9a8668' });
+  for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    bx('tufa', S, a * 4.55 - 0.55, a * 4.55 + 0.55, 37.7, 39.5, b * 4.55 - 0.55, b * 4.55 + 0.55, { c: '#c4a87e' });
+    pyramid('flat', 1.3, 1.3, 1.2, { M: mul(S, tr(a * 4.55, 39.5, b * 4.55)), c: '#b89e76', noao: true });
+  }
+  // ---- the porch between the towers: three arches on two columns and two end piers, each down to its own ground, an iron railing between, the entablature and the balustrade
+  const gnd = (x, u = 0.6) => groundY(...duUV(u, -x)) - y0 - 0.3, pale = '#cbc6b8';
+  const arches = new THREE.Shape(); arches.moveTo(-10.5, 6.3);
+  for (const c of [-5.65, 0, 5.65]) { arches.lineTo(c - 2.45, 6.3); arches.absarc(c, 6.3, 2.45, PI, 0, true); }
+  arches.lineTo(10.5, 6.3); arches.lineTo(10.5, 11.4); arches.lineTo(-10.5, 11.4); arches.lineTo(-10.5, 6.3);
+  extrude('flat', arches, 0.8, { M: mul(FF, tr(0, 0, -1.0)), c: pale, cs: 6 });
+  for (const c of [-5.65, 0, 5.65]) part('flat', new THREE.TorusGeometry(2.58, 0.13, 3, 12, PI), { M: mul(FF, tr(c, 6.3, -0.18)), c: '#b4aea0', noao: true });
+  for (const x of [-2.83, 2.83]) {
+    const g = gnd(x);
+    cyl('flat', 0.34, 0.4, 5.9 - g, 8, { M: mul(FF, tr(x, g, -0.6)), c: pale, noao: true });
+    bx('flat', FF, x - 0.52, x + 0.52, g, g + 0.8, -1.1, -0.1, { c: '#b8b2a2' }); bx('flat', FF, x - 0.52, x + 0.52, 5.85, 6.32, -1.1, -0.1, { c: '#d4cfc0' });
+  }
+  for (const s of [-1, 1]) {
+    const g = Math.min(gnd(s * 8.1), gnd(s * 10.5));
+    bx('flat', FF, s * 8.1, s * 10.55, g, 6.3, -1.0, -0.2, { c: '#beb8a9' });
+    for (const x of [8.4, 9.75]) bx('flat', FF, s * x - 0.28, s * x + 0.28, g, 11.4, -0.22, -0.04, { c: '#d4cfc0' });
+  }
+  for (const [a, b] of [[-8.1, -3.35], [-2.3, 2.3], [3.35, 8.1]]) rail(mul(FF, tr((a + b) / 2, gnd((a + b) / 2), -0.45)), b - a, 2.4, { c: '#a8a8b0' });
+  bx('flat', FF, -10.6, 10.6, 11.4, 12.5, -1.15, -0.05, { c: '#c3bdae' });
+  for (let i = 0; i < 14; i++) bx('flat', FF, -10.2 + i * 1.48, -9.1 + i * 1.48, 11.62, 12.12, -0.06, 0.0, { c: '#a9a294' });
+  bx('flat', FF, -10.7, 10.7, 12.35, 12.6, -1.2, 0.15, { c: '#d4cfc0' });
+  bx('flat', FF, -10.5, 10.5, 12.0, 12.3, -6.6, -1.1, { c: '#8d877a' });
+  balus(mul(FF, tr(0, 12.6, -0.15)), 20.6, 1.35, { c: '#e8e4d8' });
+  for (const x of [-10.2, -5.1, 0, 5.1, 10.2]) bx('flat', FF, x - 0.3, x + 0.3, 12.6, 14.1, -0.45, 0.05, { c: '#cbc6b8' });
+  // the back of the porch with the great pointed door
+  const gb = Math.min(gnd(-10.5, 6.5), gnd(0, 6.5), gnd(10.5, 6.5));
+  bx('tufa', FF, -10.6, 10.6, gb, 12.1, -7.0, -6.6, { c: '#a58a68' });
+  const gd = gnd(0, 6.5);
+  extrude('flat', pointed(6.4, 10.4 - gd), 0.1, { M: mul(FF, tr(0, gd, -6.62)), c: '#c9b48e', noao: true });
+  extrude('dark', pointed(4.6, 8.8 - gd), 0.16, { M: mul(FF, tr(0, gd, -6.6)), c: '#47321f', noao: true });
+  // the wall over the porch with its gable, the cornices along it and the cross
+  extrude('duoFront', poly([[-10.55, 12.2], [10.55, 12.2], [10.55, 21.05], [0, 25.8], [-10.55, 21.05]]), 0.5, { M: mul(FF, tr(0, 0, -7.0)), uv: 'keep', uvk: [1 / 21, 1 / 13.8], uvo: [0.5, -12.2 / 13.8], noao: true });
+  for (const s of [-1, 1]) box('flat', Math.hypot(10.6, 4.75), 0.32, 0.75, { M: FF, p: [s * 5.3, 23.3, -6.75], rz: -s * Math.atan2(4.75, 10.6), c: '#d6c09a', noao: true });
+  bx('flat', FF, -0.3, 0.3, 25.7, 26.3, -7.0, -6.4, { c: '#d6c09a' });
+  bx('flat', FF, -0.08, 0.08, 26.3, 27.8, -6.75, -6.62, { c: '#e0dccc', noao: true }); bx('flat', FF, -0.5, 0.5, 27.1, 27.25, -6.75, -6.62, { c: '#e0dccc', noao: true });
+  const o = end('Duomo di Monreale');
+  o.userData.solids = [[[[7, 21.3], [7, -20.9], [55.6, -20.8], [56.1, -22.8], [86.6, -22.9], [86.8, 9.8], [84, 9.8], [83.4, 20.2], [73.2, 20.2], [57.3, 19.9], [51, 21.4]].flatMap(q => duUV(...q)), null, y0 + E]];   // occluder: the body behind the porch, kept inside the walls
+  return o;
 }
 const cd = centre(pairsOf(DUOMO.p));
-export const DUOMO_MONREALE = { name: 'Duomo di Monreale', x: cd[0], z: cd[1], radius: 90, skipIds: [DUOMO.id], build: buildDuomo };
+// the two side apses stand out of the footprint over ground the car can reach: walls round them
+const DUO_WALLS = ['n', 's'].flatMap(k => { const [u, v, r] = DU_APSES[k], q = [-90, -54, -18, 18, 54, 90].map(a => duUV(u + Math.cos(a * PI / 180) * (r + 0.15), v + Math.sin(a * PI / 180) * (r + 0.15))); return q.slice(1).map((p, i) => [...q[i], ...p]); });
+export const DUOMO_MONREALE = { name: 'Duomo di Monreale', x: cd[0], z: cd[1], radius: 90, skipIds: [DUOMO.id], build: buildDuomo, walls: DUO_WALLS };
 
 // ---------------------------------------------------------------------------------------------------
-// Shared by the two churches below: a frame on the middle of a front (outward normal n, +x to the right seen from outside), a point of that frame in world metres,
+// Shared by the two churches below (Belmonte Mezzagno and Capaci), in a frame on the middle of a front:
 // a flight of n steps rising along local x from xa (the foot) to xb (the top, height h) between z0 and z1, and a balustrade or railing laid along a flight.
 // ---------------------------------------------------------------------------------------------------
-const toWorld = (F, n) => (x, z) => [F[0] + x * n[1] + z * n[0], F[1] - x * n[0] + z * n[1]];
 function flight(M, xa, xb, z0, z1, h, n, c, key = 'stone') {
   const L = Math.abs(xb - xa), t = L / n, r = h / n, sg = xb > xa ? 1 : -1, s = new THREE.Shape();
   s.moveTo(xa, -0.4);
@@ -334,49 +614,53 @@ export const CROCIFISSO_BM = {
 // Its front is the short west-north-west end of the footprint, on the square where Via Generale Cascino comes down. Frame KF: origin at the middle of that edge on the ground,
 // +z out of the front, +x towards the south-south-west (to the right seen from the square); the bell tower stands at the north end (-x).
 // Seen in photos (Mapillary, 5 October 2019, from the street to the north-west: 472051383873858, 269820611559767, 182537833748420, 1163620144099733, 1037298440009986; looked at only):
-// the front of pale limestone ashlar, warmer in the middle, crowned by a wavy crest that climbs from two shoulders to a cross, stone finials on the shoulders and on the crest,
+// the front of warm buff stone, richly framed, crowned by a wavy crest that climbs from two shoulders to a cross, stone finials on the shoulders and on the crest,
 // pilasters, an arched portal in the middle and a smaller arched door either side with an oculus over it, a window with a carved frame over the portal; the square tower flush
 // with the front at its north end, plain ashlar with quoins in three stages divided by cornices, one round-arched bell opening a face at the top, a flat top behind a parapet;
 // a stone terrace with steps and an iron railing in front; a tall grey rendered wall with a curved top behind and north of the tower (taken for the next building, not drawn here).
 // Not seen: the far (south) end of the front behind the trees, the sides and the back (drawn as grey render under a gable roof of tiles kept below the crest, since no roof shows
 // over the front in the photos), the stairs' exact plan (two flights from the ends to a middle landing, from the "a tenaglia" of the text).
+// The same frames show the carved work standing out of the front (a moulded coping along the crest, frames round the openings, a pediment over the portal); it is drawn plainer.
 // Heights are estimates from the photos against the 20.6 m front of the footprint: shoulders 12.4 m, crest 16.6 m, the tower 24.8 m. Whether there is a dome behind could not be
 // told from the photos; none is drawn.
 // ---------------------------------------------------------------------------------------------------
 const CAPACI = { id: 'w370279778', p: [-10734.9, -6014.2, -10733.5, -6014.1, -10717.8, -6008.3, -10713.6, -6006.8, -10700.3, -6001.9, -10707.7, -5982.2, -10726.7, -5989.3, -10742.1, -5994.9, -10740.1, -6000.2] };
 const CA_F = [-10738.5, -6004.55], CA_N = [-0.9369, -0.3495];   // the middle of the front edge (-10734.9, -6014.2) to (-10742.1, -5994.9), 20.6 m, and its outward normal
 const CA_TW = 6.2, CA_X0 = -10.3, CA_X1 = 10.3, CA_FW = 14.4, CA_FC = 3.1, CA_TH = 24.8;   // tower width, front from x0 to x1, the facade beside the tower (width, middle)
-const CA_STONE = '#c8bea7';
+const CA_STONE = '#cbae80';
 function paintCapaciFront(g, w, h) {   // 14.4 m wide, 17 m tall from the ground
   const sx = w / 14.4, sy = h / 17, X = x => (x + 7.2) * sx, Y = y => h - y * sy;
   const R = (x0, y0, x1, y1, c) => { g.fillStyle = c; g.fillRect(X(x0), Y(y1), (x1 - x0) * sx, (y1 - y0) * sy); };
   const arch = (x, y0, y1, ww, c) => { const r = ww / 2; g.fillStyle = c; g.beginPath(); g.moveTo(X(x - r), Y(y0)); g.lineTo(X(x - r), Y(y1 - r)); g.arc(X(x), Y(y1 - r), r * sx, PI, 0); g.lineTo(X(x + r), Y(y0)); g.fill(); };
   const circ = (x, y, r, c) => { g.fillStyle = c; g.beginPath(); g.arc(X(x), Y(y), r * sx, 0, 2 * PI); g.fill(); };
-  paintAshlar(g, w, h, 14.4, 17, 0.5, 1.1, CA_STONE, '#b2a891', 1601, 1.0, 0.04);
-  const gr = g.createRadialGradient(X(0), Y(9), 0, X(0), Y(9), 6 * sx); gr.addColorStop(0, 'rgba(196,150,112,0.30)'); gr.addColorStop(1, 'rgba(196,150,112,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
-  for (const x of [-6.7, -2.6, 2.6, 6.7]) { R(x - 0.42, 1.2, x + 0.42, 11.8, '#ddd4c0'); R(x + 0.42, 1.2, x + 0.5, 11.8, 'rgba(60,45,30,0.25)'); R(x - 0.55, 10.6, x + 0.55, 11.2, '#e2dac8'); }
+  paintAshlar(g, w, h, 14.4, 17, 0.5, 1.1, CA_STONE, '#a98e66', 1601, 1.0, 0.09);
+  noiseDots(g, w, h, w * h / 60, 3, 1603, ['rgba(150,90,50,0.16)', 'rgba(245,220,170,0.14)']);
+  const gr = g.createRadialGradient(X(0), Y(9), 0, X(0), Y(9), 6 * sx); gr.addColorStop(0, 'rgba(188,124,86,0.40)'); gr.addColorStop(1, 'rgba(188,124,86,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  for (const x of [-6.7, -2.6, 2.6, 6.7]) { R(x - 0.42, 1.2, x + 0.42, 11.8, '#dcc092'); R(x + 0.42, 1.2, x + 0.5, 11.8, 'rgba(60,45,30,0.35)'); R(x - 0.55, 10.6, x + 0.55, 11.2, '#e2c89c'); }
   // the portal in the middle, a door each side with an oculus over it, the carved window over the portal
-  arch(0, 1.2, 6.9, 3.3, '#c7b393'); arch(0, 1.2, 6.5, 2.5, '#5d4330'); R(-0.03, 1.2, 0.03, 5.3, '#2e2218');
+  arch(0, 1.2, 6.9, 3.3, '#dab98a'); arch(0, 1.2, 6.5, 2.5, '#5d4330'); R(-0.03, 1.2, 0.03, 5.3, '#2e2218');
   for (const s of [-1, 1]) {
-    arch(s * 4.65, 1.2, 5.2, 2.1, '#c7b393'); arch(s * 4.65, 1.2, 4.9, 1.5, '#5d4330');
-    circ(s * 4.65, 7.1, 0.85, '#c7b393'); circ(s * 4.65, 7.1, 0.62, '#3b3530');
+    arch(s * 4.65, 1.2, 5.2, 2.1, '#dab98a'); arch(s * 4.65, 1.2, 4.9, 1.5, '#5d4330');
+    circ(s * 4.65, 7.1, 0.85, '#dab98a'); circ(s * 4.65, 7.1, 0.62, '#3b3530');
   }
-  arch(0, 7.6, 10.4, 2.4, '#c9ad90'); arch(0, 7.9, 10.0, 1.5, '#37312c');
-  g.fillStyle = '#c9ad90'; g.beginPath(); g.moveTo(X(-1.6), Y(7.6)); g.quadraticCurveTo(X(0), Y(7.0), X(1.6), Y(7.6)); g.fill();
+  arch(0, 7.6, 10.4, 2.4, '#d2a67c'); arch(0, 7.9, 10.0, 1.5, '#37312c');
+  g.fillStyle = '#d2a67c'; g.beginPath(); g.moveTo(X(-1.6), Y(7.6)); g.quadraticCurveTo(X(0), Y(7.0), X(1.6), Y(7.6)); g.fill();
   // the crest: a carved cartouche and a niche in the middle, a moulding along the edge (the outline is the shape of the geometry)
-  R(-7.2, 11.75, 7.2, 12.4, '#ddd3be');
-  g.fillStyle = '#c9ad90'; g.beginPath(); g.ellipse(X(0), Y(13.9), 1.2 * sx, 1.0 * sy, 0, 0, 2 * PI); g.fill(); circ(0, 13.9, 0.55, '#a88f72');
-  g.strokeStyle = '#e4dccb'; g.lineWidth = 0.35 * sx; g.beginPath(); g.moveTo(X(4.6), Y(12.2)); g.bezierCurveTo(X(3.6), Y(12.2), X(3.4), Y(14.4), X(2.0), Y(14.8)); g.quadraticCurveTo(X(0.6), Y(15.1), X(0), Y(16.4));
+  R(-7.2, 11.75, 7.2, 12.4, '#dcc090');
+  // carved scrolls over the side doors and under the crest
+  g.strokeStyle = '#e2c496'; g.lineWidth = 0.16 * sx; for (const s of [-1, 1]) { for (const [x, y, r] of [[4.65, 5.85, 0.45], [4.65, 9.0, 0.55], [2.3, 13.2, 0.6], [1.55, 11.0, 0.4]]) { g.beginPath(); g.arc(X(s * (x - r * 0.8)), Y(y), r * sx, 0, 1.5 * PI); g.stroke(); g.beginPath(); g.arc(X(s * (x + r * 0.8)), Y(y), r * sx, PI, 2.5 * PI); g.stroke(); } }
+  g.fillStyle = '#d8b484'; g.beginPath(); g.ellipse(X(0), Y(13.9), 1.2 * sx, 1.0 * sy, 0, 0, 2 * PI); g.fill(); circ(0, 13.9, 0.55, '#9c7652');
+  g.strokeStyle = '#e6caa0'; g.lineWidth = 0.35 * sx; g.beginPath(); g.moveTo(X(4.6), Y(12.2)); g.bezierCurveTo(X(3.6), Y(12.2), X(3.4), Y(14.4), X(2.0), Y(14.8)); g.quadraticCurveTo(X(0.6), Y(15.1), X(0), Y(16.4));
   g.quadraticCurveTo(X(-0.6), Y(15.1), X(-2.0), Y(14.8)); g.bezierCurveTo(X(-3.4), Y(14.4), X(-3.6), Y(12.2), X(-4.6), Y(12.2)); g.stroke();
   streaks(g, w, h, 30, 1602, 0.09, 80, '60,50,40');
   const gb = g.createLinearGradient(0, Y(0), 0, Y(2.5)); gb.addColorStop(0, 'rgba(30,25,18,0.3)'); gb.addColorStop(1, 'rgba(30,25,18,0)'); g.fillStyle = gb; g.fillRect(0, Y(2.5), w, 2.5 * sy);
 }
 function paintCapaciTower(g, w, h) {   // one face, 6.2 m wide and 24.8 m tall: ashlar, quoins, a slit in the lower stages, the bell opening at the top
   const sx = w / 6.2, sy = h / 24.8, X = x => x * sx, Y = y => h - y * sy;
-  paintAshlar(g, w, h, 6.2, 24.8, 0.5, 1.1, '#c4bdab', '#aba390', 1611, 0.8, 0.05);
-  for (let y = 0; y < 24.8; y += 1.0) for (const [x0, x1] of [[0, y % 2 ? 0.9 : 0.55], [y % 2 ? 5.3 : 5.65, 6.2]]) { g.fillStyle = '#cfc9b9'; g.fillRect(X(x0), Y(y + 0.95), (x1 - x0) * sx, 0.9 * sy); }
+  paintAshlar(g, w, h, 6.2, 24.8, 0.5, 1.1, '#cdb282', '#a58a60', 1611, 0.8, 0.08);
+  for (let y = 0; y < 24.8; y += 1.0) for (const [x0, x1] of [[0, y % 2 ? 0.9 : 0.55], [y % 2 ? 5.3 : 5.65, 6.2]]) { g.fillStyle = '#d6c6a2'; g.fillRect(X(x0), Y(y + 0.95), (x1 - x0) * sx, 0.9 * sy); }
   for (const y of [7.5, 15.2]) { g.fillStyle = '#2b2622'; g.fillRect(X(2.85), Y(y + 1.3), 0.5 * sx, 1.3 * sy); }
-  const r = 0.75; g.fillStyle = '#ddd6c4'; g.beginPath(); g.moveTo(X(3.1 - r - 0.2), Y(19.0)); g.lineTo(X(3.1 - r - 0.2), Y(22.2)); g.arc(X(3.1), Y(22.2), (r + 0.2) * sx, PI, 0); g.lineTo(X(3.1 + r + 0.2), Y(19.0)); g.fill();
+  const r = 0.75; g.fillStyle = '#e0d0aa'; g.beginPath(); g.moveTo(X(3.1 - r - 0.2), Y(19.0)); g.lineTo(X(3.1 - r - 0.2), Y(22.2)); g.arc(X(3.1), Y(22.2), (r + 0.2) * sx, PI, 0); g.lineTo(X(3.1 + r + 0.2), Y(19.0)); g.fill();
   g.fillStyle = '#1f1b17'; g.beginPath(); g.moveTo(X(3.1 - r), Y(19.2)); g.lineTo(X(3.1 - r), Y(22.2)); g.arc(X(3.1), Y(22.2), r * sx, PI, 0); g.lineTo(X(3.1 + r), Y(19.2)); g.fill();
   g.fillStyle = '#7d6236'; g.beginPath(); g.arc(X(3.1), Y(21.0), 0.42 * sx, PI, 0); g.lineTo(X(3.55), Y(20.25)); g.lineTo(X(2.65), Y(20.25)); g.fill();
   streaks(g, w, h, 18, 1612, 0.1, 90, '55,48,40');
@@ -408,17 +692,27 @@ function buildCapaci() {
   s.moveTo(-hw, 0); s.lineTo(hw, 0); s.lineTo(hw, 12.4); s.lineTo(4.6, 12.4); s.bezierCurveTo(3.6, 12.4, 3.4, 14.6, 2.0, 15.0); s.quadraticCurveTo(0.6, 15.3, 0, 16.6);
   s.quadraticCurveTo(-0.6, 15.3, -2.0, 15.0); s.bezierCurveTo(-3.4, 14.6, -3.6, 12.4, -4.6, 12.4); s.lineTo(-hw, 12.4); s.lineTo(-hw, 0);
   extrude('caFront', s, 0.75, { M: at(CA_FC, 0, -0.35), uv: 'keep', uvk: [1 / CA_FW, 1 / 17], uvo: [0.5, 0], cs: 5, noao: true });
-  for (const x of [-6.7, -2.6, 2.6, 6.7]) bx('flat', F, CA_FC + x - 0.42, CA_FC + x + 0.42, 1.2, 11.75, 0.4, 0.62, { c: '#ddd4c0' });
-  bx('flat', F, CA_FC - hw - 0.15, CA_FC + hw + 0.25, 11.75, 12.45, -0.2, 0.85, { c: '#ddd4c2' });   // the cornice under the crest
-  const finial = (x, y, k) => { bx('flat', F, x - 0.42 * k, x + 0.42 * k, y, y + 0.8 * k, -0.05, 0.75, { c: '#d6ccb6' }); sphere('flat', 0.4 * k, { M: at(x, y + 0.8 * k + 0.32 * k, 0.35), ky: 1.4, seg: 5, c: '#cfc4ac' }); };
+  for (const x of [-6.7, -2.6, 2.6, 6.7]) bx('flat', F, CA_FC + x - 0.42, CA_FC + x + 0.42, 1.2, 11.75, 0.4, 0.62, { c: '#d6ba8c' });
+  bx('flat', F, CA_FC - hw - 0.15, CA_FC + hw + 0.25, 11.75, 12.45, -0.2, 0.85, { c: '#dcc296' });   // the cornice under the crest
+  // the carved work standing out: the coping that follows the crest, the capitals, rings round the arches and the oculi, the pediments over the portal and the window
+  const lip = new THREE.Shape(); lip.moveTo(-4.9, 12.45); lip.lineTo(-4.6, 12.45); lip.bezierCurveTo(-3.6, 12.45, -3.4, 14.65, -2.0, 15.05); lip.quadraticCurveTo(-0.6, 15.35, 0, 16.65); lip.quadraticCurveTo(0.6, 15.35, 2.0, 15.05); lip.bezierCurveTo(3.4, 14.65, 3.6, 12.45, 4.6, 12.45); lip.lineTo(4.9, 12.45);
+  lip.lineTo(4.9, 12.75); lip.bezierCurveTo(3.8, 12.8, 3.7, 14.95, 2.15, 15.45); lip.quadraticCurveTo(0.8, 15.75, 0, 17.05); lip.quadraticCurveTo(-0.8, 15.75, -2.15, 15.45); lip.bezierCurveTo(-3.7, 14.95, -3.8, 12.8, -4.9, 12.75); lip.lineTo(-4.9, 12.45);
+  extrude('flat', lip, 1.05, { M: at(CA_FC, 0, -0.4), c: '#e0c698', cs: 5, noao: true });
+  for (const x of [-6.7, -2.6, 2.6, 6.7]) bx('flat', F, CA_FC + x - 0.6, CA_FC + x + 0.6, 10.6, 11.15, 0.4, 0.74, { c: '#e2c89c' });
+  const hoop = (x, y, r, t, arc) => part('flat', new THREE.TorusGeometry(r, t, 3, arc > PI ? 14 : 10, arc), { M: at(CA_FC + x, y, 0.45), c: '#e0c294', noao: true });
+  hoop(0, 5.25, 1.5, 0.18, PI); for (const s of [-1, 1]) { hoop(s * 4.65, 4.15, 0.92, 0.12, PI); hoop(s * 4.65, 7.1, 0.76, 0.13, 2 * PI); bx('flat', F, CA_FC + s * 1.33, CA_FC + s * 1.75, 1.2, 5.3, 0.4, 0.66, { c: '#d9bc8e' }); }
+  hoop(0, 9.2, 0.98, 0.13, PI);
+  const hood = (x, y, hw2, rise2) => { const sh = new THREE.Shape(); sh.moveTo(-hw2, 0); sh.quadraticCurveTo(-hw2 * 0.4, rise2 * 0.2, 0, rise2); sh.quadraticCurveTo(hw2 * 0.4, rise2 * 0.2, hw2, 0); sh.lineTo(hw2, 0.22); sh.quadraticCurveTo(hw2 * 0.4, rise2 * 0.45, 0, rise2 + 0.3); sh.quadraticCurveTo(-hw2 * 0.4, rise2 * 0.45, -hw2, 0.22); sh.lineTo(-hw2, 0); extrude('flat', sh, 0.35, { M: at(CA_FC + x, y, 0.35), c: '#e2c698', cs: 4, noao: true }); };
+  hood(0, 6.85, 2.05, 0.45); hood(0, 10.55, 1.45, 0.45); for (const s of [-1, 1]) hood(s * 4.65, 5.35, 1.15, 0.28);
+  const finial = (x, y, k) => { bx('flat', F, x - 0.42 * k, x + 0.42 * k, y, y + 0.8 * k, -0.05, 0.75, { c: '#d6ba8c' }); sphere('flat', 0.4 * k, { M: at(x, y + 0.8 * k + 0.32 * k, 0.35), ky: 1.4, seg: 5, c: '#cdb286' }); };
   finial(CA_FC - 6.5, 12.45, 1); finial(CA_FC + 6.5, 12.45, 1); finial(CA_FC - 2.25, 14.85, 0.85); finial(CA_FC + 2.25, 14.85, 0.85);
   bx('flat', F, CA_FC - 0.08, CA_FC + 0.08, 16.4, 18.2, 0.0, 0.16, { c: '#3e3a36', noao: true }); bx('flat', F, CA_FC - 0.55, CA_FC + 0.55, 17.3, 17.45, 0.0, 0.16, { c: '#3e3a36', noao: true });
   // the bell tower: four painted faces round a core, cornices between the stages, a parapet on the top
   const TX = CA_X0 + CA_TW / 2, TZ = -CA_TW / 2 + 0.35, T = at(TX, 0, TZ);
   for (const a of [0, PI / 2, PI, -PI / 2]) panel('caTower', CA_TW, CA_TH, { M: mul(mul(T, new THREE.Matrix4().makeRotationY(a)), tr(0, 0, CA_TW / 2 + 0.02)) });
-  box('flat', CA_TW - 0.1, CA_TH, CA_TW - 0.1, { M: T, c: '#bfb8a6', noao: true });
-  for (const [y0c, y1c, o] of [[12.0, 12.6, 0.3], [18.2, 18.7, 0.25], [23.6, 24.2, 0.35]]) bx('flat', T, -CA_TW / 2 - o, CA_TW / 2 + o, y0c, y1c, -CA_TW / 2 - o, CA_TW / 2 + o, { c: '#d6cfbd' });
-  bx('flat', T, -CA_TW / 2 + 0.1, CA_TW / 2 - 0.1, 24.2, 24.85, -CA_TW / 2 + 0.1, CA_TW / 2 - 0.1, { c: '#c9c2b0' });
+  box('flat', CA_TW - 0.1, CA_TH, CA_TW - 0.1, { M: T, c: '#c2b08c', noao: true });
+  for (const [y0c, y1c, o] of [[12.0, 12.6, 0.3], [18.2, 18.7, 0.25], [23.6, 24.2, 0.35]]) bx('flat', T, -CA_TW / 2 - o, CA_TW / 2 + o, y0c, y1c, -CA_TW / 2 - o, CA_TW / 2 + o, { c: '#d8c7a0' });
+  bx('flat', T, -CA_TW / 2 + 0.1, CA_TW / 2 - 0.1, 24.2, 24.85, -CA_TW / 2 + 0.1, CA_TW / 2 - 0.1, { c: '#ccba94' });
   // the terrace across the front beside the tower, a landing in the middle, the two flights from the ends, iron railings
   const TH = 1.2, x0 = CA_X0 + CA_TW, x1 = CA_X1;
   bx('stone', F, x0, x1, -0.4, TH, 0.4, 2.8, { c: '#cfc7b4' });

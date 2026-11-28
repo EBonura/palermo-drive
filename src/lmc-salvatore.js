@@ -1,15 +1,17 @@
 // City landmark: the Chiesa del Santissimo Salvatore (Corso Vittorio Emanuele, Palermo). Registered in src/landmarks-city.js.
-// It replaces the OSM footprint w49750035 (a lidar outline whose roof reads 53.9 m, inflated by the neighbours): the baroque front on the Corso, the body behind it, and the low dome on a twelve sided drum.
+// It replaces the OSM footprint w49750035 (a lidar outline whose roof reads 53.9 m, inflated by the neighbours): the baroque front on the Corso, the body behind it, and the tall twelve sided drum with its lantern.
 // Frame F: origin on the ground in the middle of the front wall (the footprint edge facing the Corso, north-north-west), +z out of the front, +x towards the west-south-west (the right hand seen from the Corso).
 // Measured from the footprint: the front is 26.3 m wide, the body runs about 33 m back from it, a narrower sacristy tail reaches 43 m.
-// Reference photos (Wikimedia Commons, viewed): Chiesa del Santissimo Salvatore (Palermo) - Facciata1.JPG; Chiesa del Santissimo Salvatore (Palermo) - facciata2.JPG; SS.Salvatore facciata.jpg; Santissimo Salvatore (Palermo) 25.jpg; SS PA 15 07 2018 01.jpg.
+// Reference photos (Wikimedia Commons, viewed): Chiesa del Santissimo Salvatore (Palermo) - Facciata1.JPG; Chiesa del Santissimo Salvatore (Palermo) - facciata2.JPG; SS.Salvatore facciata.jpg; Santissimo Salvatore (Palermo) 25.jpg; SS PA 15 07 2018 01.jpg; and for the drum from outside: Ss.Salvatore Cupola.jpg; SS (Palermo) 15 07 2019 01.jpg.
 // Read from them: golden tufa stone dressings with grey stone door frame; a lower order whose centre is a wide plain white plastered panel (a plain rectangular grey stone portal in it, two small diamond studs)
 // between two pairs of Corinthian pilasters on tall pedestals, side bays each with a framed window and a niche with a shell under a small window, a deep modillion cornice over the lower order;
 // an upper order: wings with a framed window and a balustrade with finials, a central block with a framed window with balcony, three arched windows over a balustrade, shell cartouches, paired pilasters,
-// crowned by a segmental (curved) pediment. The drum (seen from behind) is a many sided polygon with big arched openings and white terraces around; the dome plan is a dodecagon with an elliptical dome (it.wikipedia).
-// Not verified: the exact pilaster count at the corners, the dome profile (no photo shows it), the number of drum sides beyond what it.wikipedia states, the statues (omitted).
+// crowned by a segmental (curved) pediment. The dome plan is a dodecagon with an elliptical dome (it.wikipedia).
+// From outside the dome itself does not show: the drum is a polygon of weathered brown tufa with a pilaster strip at each corner, a big open arch with a stone balustrade in every face,
+// a heavy dark cornice and a flat topped parapet; a small white round lantern with arched windows rises from the middle, under a ribbed dark metal cone with a ball finial.
+// Not verified: the exact pilaster count at the front corners, the drum faces out of view and the roof behind the parapet (plain), the drum and lantern sizes (judged by eye from the photos), the number of lantern windows, the statues (omitted).
 import * as THREE from 'three';
-import { PI, bx, cyl, lathe, sphere, panel, extrude, prism, begin, end, defMat, mul, tr, frame, groundY, initShared, paintAshlar, noiseDots, streaks, pairsOf, groundRange } from './lmc-kit.js';
+import { PI, bx, cyl, lathe, sphere, panel, extrude, prism, begin, end, defMat, mul, tr, rotY, frame, groundY, initShared, paintAshlar, noiseDots, streaks, pairsOf, groundRange } from './lmc-kit.js';
 
 const SV = { id: 'w49750035', p: [-239.2, 141.8, -215.7, 129.9, -198.3, 158.3, -204.9, 161.8, -207.4, 163.4, -203.4, 171.7, -213, 175.6, -216.4, 168, -221.1, 166.3, -224.7, 161.2, -229.5, 163.7, -233.3, 155.2] };
 const O = [-227.45, 135.85], N = [-0.4518, -0.8921];
@@ -75,14 +77,16 @@ function paintWall(g, w, h) {   // a side bay: 4.5 m wide, EAVE m tall; a window
   R(0, EAVE - 0.7, 4.5, EAVE, '#e9e1cc'); R(0, EAVE - 1.1, 4.5, EAVE - 0.7, 'rgba(40,30,18,0.3)');
   streaks(g, w, h, 10, 4615, 0.1, 80, '55,48,40');
 }
-function paintDrum(g, w, h) {   // one facet of the twelve sided drum: 5.4 m wide, DRUM m tall, a tall arched opening, a cornice
+function paintDrum(g, w, h) {   // one facet of the twelve sided drum: 5.4 m wide, DRUM m tall: pilaster strips at the corners, an open arch with a balustrade, the entablature
   const sx = w / 5.4, sy = h / DRUM, X = x => x * sx, Y = y => h - y * sy;
   const R = (x0, y0, x1, y1, c) => { g.fillStyle = c; g.fillRect(X(x0), Y(y1), (x1 - x0) * sx, (y1 - y0) * sy); };
-  const arch = (x, y0, y1, ww, c) => { const r = ww / 2; g.fillStyle = c; g.beginPath(); g.moveTo(X(x - r), Y(y0)); g.lineTo(X(x - r), Y(y1 - r)); g.arc(X(x), Y(y1 - r), r * sx, PI, 0); g.lineTo(X(x + r), Y(y0)); g.fill(); };
-  paintAshlar(g, w, h, 5.4, DRUM, 0.6, 1.4, '#cba66d', '#a38559', 4621, 1.0, 0.06);
-  R(0, 0, 0.45, DRUM, '#d6b680'); R(4.95, 0, 5.4, DRUM, '#d6b680');
-  arch(2.7, 0.7, 4.3, 2.9, '#b99362'); arch(2.7, 0.9, 4.1, 2.3, '#241c16');
-  R(0, DRUM - 0.5, 5.4, DRUM, '#dcbd86'); R(0, DRUM - 0.8, 5.4, DRUM - 0.5, 'rgba(40,30,18,0.3)');
+  const arch = (x, y0, y1, ww, c) => { const r = ww / 2; g.fillStyle = c; g.beginPath(); g.moveTo(X(x - r), Y(y0)); g.lineTo(X(x - r), Y(y1 - r)); g.ellipse(X(x), Y(y1 - r), r * sx, r * sy, 0, PI, 2 * PI); g.lineTo(X(x + r), Y(y0)); g.fill(); };
+  paintAshlar(g, w, h, 5.4, DRUM, 0.45, 1.0, '#b28a55', '#715636', 4621, 1.0, 0.12);
+  for (const x of [0, 4.7]) { R(x, 0, x + 0.7, 4.4, 'rgba(225,185,125,0.22)'); R(x + 0.3, 0, x + 0.36, 4.4, 'rgba(50,32,18,0.4)'); R(x, 3.8, x + 0.7, 4.0, '#a98557'); }
+  arch(2.7, 0.15, 4.25, 3.6, '#a47f50'); arch(2.7, 0.15, 4.1, 3.3, '#c29a63'); arch(2.7, 0.15, 3.95, 3.0, '#1c140f');
+  R(1.2, 0.15, 4.2, 0.28, '#a88b62'); R(1.2, 0.95, 4.2, 1.12, '#b89a6c'); for (let x = 1.35; x < 4.1; x += 0.36) R(x, 0.28, x + 0.18, 0.95, '#9c7f57');
+  R(0, 4.42, 5.4, DRUM, '#9a7a50'); R(0, 4.42, 5.4, 4.52, '#c4a06c'); R(0, 4.8, 5.4, 4.9, 'rgba(40,28,16,0.45)'); R(0, DRUM - 0.12, 5.4, DRUM, '#bd9a68');
+  streaks(g, w, h, 16, 4623, 0.16, 60, '45,36,26');
 }
 
 function buildSalvatore() {
@@ -110,17 +114,19 @@ function buildSalvatore() {
   for (const x of [-7.35, -6.2, 6.2, 7.35, -12.6, 12.6]) bx('flat', F, x - 0.75, x + 0.75, 1.4, 3.2, -0.05, 0.4, { c: '#bb986a', noao: true });
   for (const sg of [-1, 1]) for (const fx of [12.8, 7.9]) { bx('flat', F, sg * fx - 0.3, sg * fx + 0.3, 15.0, 15.6, -0.2, 0.2, { c: '#d6b680' }); sphere('flat', 0.38, { M: at(sg * fx, 16.0, 0), ky: 1.4, seg: 6, c: '#d6b680' }); }
   for (let i = 0; i < 3; i++) bx('stone', F, -2.9 - i * 0.2, 2.9 + i * 0.2, -0.3, 0.16 * (3 - i), 0, 0.35 * (i + 1), { c: '#d8cfb8' });
-  // the oval: a drum (a cylinder squashed to an ellipse), the low lead dome on it and the lantern
+  // the oval: the drum (a twelve sided cylinder squashed to an ellipse), its cornice and the dark parapet that hides the dome from the street; the white lantern and its metal cone
   const D = at(0, EAVE, DZ), ky = DRZ / DRX;
   const dm = (k) => ({ M: D, s: [1, 1, ky], ...k });
   cyl('svDrum', DRX, DRX, DRUM, 12, { ...dm(), noao: true, uvk: [12, 1] });
-  cyl('flat', DRX + 0.45, DRX + 0.45, 0.45, 12, { ...dm({ p: [0, DRUM - 0.1, 0] }), c: '#e9e1cc', noao: true });
-  lathe('lead', [[DRX + 0.1, 0], [DRX - 0.4, 0.5], [DRX - 1.8, 1.6], [DRX - 4.2, 2.9], [DRX - 6.6, 3.7], [DRX - 8.5, 4.2], [2.3, 4.6], [2.0, 4.6]], 28, { ...dm({ p: [0, DRUM + 0.2, 0] }), c: '#b8bcb8', noao: true });
-  const LY = DRUM + 0.2 + 4.6;
-  cyl('svDrum', 2.0, 2.0, 2.8, 12, { M: D, p: [0, LY, 0], noao: true, s: [1, 1, 1], uvk: [3, 1] });
-  lathe('lead', [[0, 0], [2.3, 0], [2.0, 0.4], [1.2, 1.1], [0.4, 1.8], [0.12, 2.5], [0, 2.8]], 12, { M: D, p: [0, LY + 2.8, 0], c: '#b8bcb8', noao: true });
-  bx('flat', D, -0.08, 0.08, LY + 5.4, LY + 6.6, -0.08, 0.08, { c: '#3e3a36', noao: true });
-  bx('flat', D, -0.45, 0.45, LY + 6.0, LY + 6.15, -0.08, 0.08, { c: '#3e3a36', noao: true });
+  cyl('flat', DRX + 0.45, DRX + 0.45, 0.4, 12, { ...dm({ p: [0, DRUM - 0.1, 0] }), c: '#8c7250', noao: true });
+  cyl('flat', DRX + 0.15, DRX + 0.15, 0.65, 12, { ...dm({ p: [0, DRUM + 0.3, 0] }), c: '#6e614e', noao: true });
+  const LY = DRUM + 0.95, LR = 2.6, LH = 2.2;
+  cyl('flat', LR, LR, LH, 12, { M: D, p: [0, LY, 0], noao: true, c: '#e6dcc2' });
+  for (let i = 0; i < 8; i++) { const a = i * PI / 4, M = mul(D, mul(tr(Math.sin(a) * (LR - 0.06), LY + 0.12, Math.cos(a) * (LR - 0.06)), rotY(a)));
+    cyl('flat', 0.62, 0.62, 0.08, 10, { M, rx: PI / 2, noao: true, c: '#cfc3a6' }); cyl('flat', 0.44, 0.44, 0.1, 10, { M, p: [0, 0, 0.03], rx: PI / 2, noao: true, c: '#323a44' }); }
+  cyl('flat', LR + 0.3, LR + 0.15, 0.4, 12, { M: D, p: [0, LY + LH, 0], c: '#efe6cf', noao: true });
+  lathe('lead', [[0, 0], [LR + 0.2, 0], [LR - 0.05, 0.18], [0.12, 2.5], [0, 2.5]], 16, { M: D, p: [0, LY + LH + 0.4, 0], c: '#7a7a7c', noao: true });
+  sphere('flat', 0.27, { M: D, p: [0, LY + LH + 3.1, 0], c: '#e9e2cf', seg: 8, noao: true });
   const o = end('Chiesa del Santissimo Salvatore');
   o.userData.solids = [[SV.p, null, y0 + EAVE]];
   return o;

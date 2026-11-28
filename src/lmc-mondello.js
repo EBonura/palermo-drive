@@ -6,11 +6,16 @@
 //    side in back-to-back rows that run from the promenade towards the water, a few metres apart, with the umbrellas in the aisles.
 //    Commons files read for the cabins: "Mondello 5.jpg" (close cabins on the sand: blue panelled walls, white frames, X braces, gable with a round vent, red roofs),
 //    "Mondello beach.jpg" (aerial: back-to-back double rows, roofs in red, salmon and white, cabin about 1.3 m wide and 1.5 to 2 m deep, doors on the aisles)
-//  - lamp posts: slender cobalt-blue steel posts with a double arm, all along the seafront and the piazza
-//  - tower: round, sandy-tan rubble tower about 14 m tall with a crown of merlons, a single slit window high up
+//    Not verified: the numbers on the door plates. Six plain ones are spread over the cabins by position; they are not the real cabins' numbers.
+//  - lamp posts: cobalt-blue Liberty posts with curled brackets and hanging lanterns (one curl on the beach road at the village end, two on the harbour quay and the
+//    piazza); along the beach road further south the posts on the sea side are dark green with two small flat heads. Mapillary frames of 2019 and 2022 along the road
+//    (for example 254985066369121 and 822414035041616 for the blue ones, 471799387224615 and 3936733736361709 for the green ones). Not verified: where exactly the blue
+//    posts give way to the green ones (put at z = -9945), the spacing, and the posts in front of the Stabilimento gate. The grey road lamps on the land side are not built.
+//  - tower: round, sandy-tan rubble tower about 14 m tall, a little battered; under the top a ring of small corbels carries the parapet with its close-set teeth; one small arched window on the
+//    harbour side. Commons "Mondello BW 2012-10-09 14-02-10" (the tower square on), "Torre di Mondello 1", "Palermo - Torre della Tonnara di Mondello - 2025-09-07"
 //  - boats: wooden gozzi, white hulls with a red line, blue or yellow strakes, hauled out on the slipway or moored along the quay
 import * as THREE from 'three';
-import { PI, defMat, begin, end, part, rotY, box, bx, cyl, sphere, prism, panel, shell, mul, tr, frame, groundY, groundRange, pairsOf, centroid, initShared, RNG, noiseDots, streaks } from './lmc-kit.js';
+import { PI, defMat, begin, end, part, rotY, box, bx, cyl, sphere, prism, panel, shell, extrude, rail, mul, tr, frame, groundY, groundRange, pairsOf, centroid, initShared, RNG, noiseDots, streaks } from './lmc-kit.js';
 
 // landward edge of the sand [z, x] (from the OSM beach polygon, which is the back of the dry beach)
 const LAND = [[-10020, -3128], [-9980, -3137], [-9940, -3158], [-9900, -3159], [-9860, -3153], [-9820, -3147], [-9780, -3141], [-9740, -3128], [-9700, -3104],
@@ -32,7 +37,7 @@ function defMats() {
   initShared();
   defMat('mnCabW', 256, 256, [1, 1], paintCabinWalls);
   defMat('mnCabR', 256, 256, [1, 1], paintCabinRoof);
-  defMat('mnStone', 128, 128, [4, 4], (g, w, h) => {
+  defMat('mdlStone', 128, 128, [4, 4], (g, w, h) => {
     g.fillStyle = '#c8ab82'; g.fillRect(0, 0, w, h);
     noiseDots(g, w, h, 900, 3.2, 901, ['rgba(120,92,60,0.22)', 'rgba(236,214,172,0.28)', 'rgba(90,70,48,0.16)']);
     g.strokeStyle = 'rgba(100,78,52,0.28)'; g.lineWidth = 1.2; for (let y = 6; y < h; y += 13) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y + 1); g.stroke(); }
@@ -47,6 +52,7 @@ function defMats() {
 // Cabin atlas (256 x 256), walls: FRONT (the boarded door wall), SIDE (white-framed panels with X braces, also the back), GABLE (the small gable above the door),
 // TRIM (white painted board for the fascia) and DECK (grey weathered boards for the step and the soffit). All regions are in pixels.
 const AT = { front: [2, 2, 112, 192], side: [118, 2, 136, 192], gable: [2, 200, 112, 50], trim: [118, 200, 68, 50], deck: [188, 200, 66, 50] };
+const PLATES = ['8', '14', '27', '33', '46', '59'];                  // plain plate numbers, painted once each into the atlas
 const CW = 1.28, CD = 1.36, CY0 = -0.4, CH = 2.12, CR = 0.4;      // cabin width along the row, depth, foot below ground, eave height, gable rise
 function paintCabinWalls(g, w, h) {
   const r = RNG(951), rr = (a, b) => a + (b - a) * r();
@@ -102,8 +108,7 @@ function paintCabinWalls(g, w, h) {
     rect('#6e5a3a', dx + dw / 2 - 1, dy, 2, dh);                                                                // meeting stile
     rect('#5b5048', dx + dw - 8, dy + dh * 0.52, 3, 9);                                                         // latch
     rect('#4a4038', dx + 2, dy + 8, 4, 3); rect('#4a4038', dx + 2, dy + dh - 14, 4, 3);                         // hinges
-    rect('#f4f4ec', dx + dw / 2 - 11, dy - 20, 22, 13);                                                         // number plate over the door
-    g.fillStyle = '#243040'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('27', dx + dw / 2, dy - 13);
+    // (the number plate over the door is a small separate quad, see PLATES)
     const sh = g.createLinearGradient(0, dy, dx + dw, dy); sh.addColorStop(0, 'rgba(0,0,0,0.22)'); sh.addColorStop(0.2, 'rgba(0,0,0,0)'); g.fillStyle = sh; g.fillRect(dx, dy, dw, dh);
     wear(x0, y0, ww, hh, [[10, 40], [ww - 12, 52], [12, 120], [ww - 10, 130], [ww / 2, 14], [30, 21], [ww - 32, 24]]);
   }
@@ -138,6 +143,14 @@ function paintCabinWalls(g, w, h) {
     for (let i = 0; i < 30; i++) { g.fillStyle = r() < 0.5 ? 'rgba(140,130,110,0.35)' : 'rgba(255,255,255,0.5)'; g.fillRect(x0 + r() * ww, y0 + r() * hh, 2 + r() * 8, 1 + r() * 2); }
     g.fillStyle = 'rgba(160,110,70,0.35)'; for (let i = 0; i < 6; i++) g.fillRect(x0 + r() * ww, y0 + r() * hh, 1, 6 + r() * 10);
   }
+  // ---- PLATES: six number plates in the upper part of the TRIM region (the eave boards only sample its lower 20 px), 22 x 13 px each
+  PLATES.forEach((num, i) => {
+    const px = AT.trim[0] + (i % 3) * 22, py = AT.trim[1] + 1 + ((i / 3) | 0) * 13;
+    g.fillStyle = '#f4f4ec'; g.fillRect(px, py, 22, 13);
+    g.fillStyle = 'rgba(80,80,70,0.35)'; g.fillRect(px, py + 12, 22, 1); g.fillRect(px + 21, py, 1, 13);
+    g.fillStyle = '#243040'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(num, px + 11, py + 7);
+    g.fillStyle = 'rgba(236,238,228,0.45)'; g.fillRect(px + 2 + ((i * 5) % 14), py + 2 + (i % 3) * 3, 4, 1);
+  });
   // ---- DECK: grey weathered boards
   { const [x0, y0, ww, hh] = AT.deck;
     for (let y = 0; y < hh; y += 10) { g.fillStyle = ['#8d8576', '#9a9382', '#827b6c'][(y / 10) % 3]; g.fillRect(x0, y0 + y, ww, 10); g.fillStyle = 'rgba(30,24,16,0.5)'; g.fillRect(x0, y0 + y, ww, 1); }
@@ -170,7 +183,8 @@ function cabinGeos() {
   if (CABGEO) return CABGEO;
   const W2 = CW / 2, D2 = CD / 2, xf = D2 + 0.16, xb = -D2 - 0.06, zs = W2 + 0.1, ye = CH - 0.06, yr = CH + CR;
   const mk = () => ({ p: [], n: [], u: [] });
-  const wall = mk(), roof = mk();
+  const roof = mk();
+  const wallBase = mk(), wall = wallBase;
   const px = (reg, x, y) => [(reg[0] + x * reg[2]) / 256, 1 - (reg[1] + (1 - y) * reg[3]) / 256];     // x, y in 0..1 of the region (y up)
   const tri = (B, a, b, c, n, ua, ub, uc) => {
     const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
@@ -207,7 +221,15 @@ function cabinGeos() {
   tri(roof, [xb, yr, 0], [xf, yr, 0], [xf, ye, zs], [0, nyv, nzv], [0, 0], [1, 0], [1, 1]); tri(roof, [xb, yr, 0], [xf, ye, zs], [xb, ye, zs], [0, nyv, nzv], [0, 0], [1, 1], [0, 1]);
   tri(roof, [xf, yr, 0], [xb, yr, 0], [xb, ye, -zs], [0, nyv, -nzv], [0, 0], [1, 0], [1, 1]); tri(roof, [xf, yr, 0], [xb, ye, -zs], [xf, ye, -zs], [0, nyv, -nzv], [0, 0], [1, 1], [0, 1]);
   const build = (B) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(B.n, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(B.u, 2)); return g; };
-  return CABGEO = { wall: build(wall), roof: build(roof) };
+  // the number plate over the door: 22 x 13 px of the 112 x 192 FRONT region, 1.2 cm proud of the door wall (2 triangles); one wall geometry per plate number
+  const pw = 22 / 112 * CW / 2, yt = CH - 10 / (192 / (CH - CY0)), yb = CH - 23 / (192 / (CH - CY0)), xp = D2 + 0.012;
+  const walls = PLATES.map((_, i) => {
+    const B = { p: wallBase.p.slice(), n: wallBase.n.slice(), u: wallBase.u.slice() };
+    const px0 = AT.trim[0] + (i % 3) * 22, py0 = AT.trim[1] + 1 + ((i / 3) | 0) * 13;
+    quad(B, [xp, yb, pw], [xp, yb, -pw], [xp, yt, -pw], [xp, yt, pw], [1, 0, 0], [px0, py0, 22, 13]);
+    return build(B);
+  });
+  return CABGEO = { wall: walls, roof: build(roof) };
 }
 const WALLT = ['#ffffff', '#f6fbff', '#e8f4ee', '#f4f8e4', '#ffffff', '#e2f0f6', '#fff6e0'];      // tints on the blue walls: most stay sky blue, a few go mint or sand
 const ROOFT = ['#ffffff', '#ffffff', '#f4cfc4', '#d9a69c', '#ffffff', '#e8e2dc', '#c9d6d8'];     // red, salmon, darker red, a few whitened or grey-blue
@@ -228,7 +250,8 @@ function cabinBlocks(za, zb, seed, gap) {
         if (y < 0.3) continue;
         const M = frame(wx, y, wz, f.nx, f.nz), Mc = r ? mul(M, rotY(PI)) : M;                        // the door faces the aisle: away from the other row
         const wc = tn() < 0.82 ? WALLT[kw] : WALLT[(tn() * WALLT.length) | 0], rc = ROOFT[(tn() * ROOFT.length) | 0];
-        part('mnCabW', G.wall, { M: Mc, c: wc, uv: 'keep', noao: true });
+        const pv = Math.abs(Math.imul(Math.round(wx * 10) ^ Math.imul(Math.round(wz * 10), 73856093), 2654435761)) >>> 8;   // plate by position, so it is the same every load
+        part('mnCabW', G.wall[pv % PLATES.length], { M: Mc, c: wc, uv: 'keep', noao: true });
         part('mnCabR', G.roof, { M: Mc, c: rc, uv: 'keep', noao: true });
       }
     }
@@ -246,21 +269,62 @@ export const MN_CABINS = [
 ];
 
 // ====================================================================================================
-// blue lamp posts along the seafront
+// the seafront and piazza lamp posts. Three kinds, all in the one flat material:
+//  - 'single': blue Liberty post with one curled bracket over the road and a hanging lantern (the village end of the seafront)
+//  - 'double': blue Liberty post with two curls and two lanterns (the harbour quay and the piazza)
+//  - 'sea': dark green post with two small flat heads (the sea side of the beach road, from the last village post down to Valdesi)
 // ====================================================================================================
-function lampPost(x, y, z, ang) {
-  const c = '#2358a8', M = frame(x, y, z, Math.sin(ang), Math.cos(ang));
-  cyl('flat', 0.07, 0.11, 5.4, 6, { M, c, noao: true });
-  bx('flat', M, -0.9, 0.9, 5.35, 5.45, -0.05, 0.05, { c, noao: true });
-  for (const sg of [-1, 1]) bx('flat', M, sg * 0.9 - 0.2, sg * 0.9 + 0.2, 5.12, 5.38, -0.17, 0.17, { c: '#e9e7de', noao: true });
+// a three-sided tube along a list of [x, y, z] points (6 triangles a segment)
+export function tubeGeo(pts, r) {
+  const pos = [], nor = [], V = pts.map(p => new THREE.Vector3(...p));
+  const ring = V.map((p, i) => {
+    const t = V[Math.min(V.length - 1, i + 1)].clone().sub(V[Math.max(0, i - 1)]).normalize();
+    const u = new THREE.Vector3(Math.abs(t.y) > 0.9 ? 1 : 0, Math.abs(t.y) > 0.9 ? 0 : 1, 0).cross(t).normalize(), w = t.clone().cross(u);
+    return [0, 1, 2].map(k => { const n = u.clone().multiplyScalar(Math.cos(k * 2 * PI / 3)).addScaledVector(w, Math.sin(k * 2 * PI / 3)); return [p.clone().addScaledVector(n, r), n]; });
+  });
+  for (let i = 0; i < V.length - 1; i++) for (let k = 0; k < 3; k++) {
+    const A = ring[i][k], B = ring[i][(k + 1) % 3], C = ring[i + 1][(k + 1) % 3], D = ring[i + 1][k];
+    for (const q of [A, B, C, A, C, D]) { pos.push(q[0].x, q[0].y, q[0].z); nor.push(q[1].x, q[1].y, q[1].z); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
+  return g;
 }
+let LAMPG = null;
+function lampGeos() {
+  if (LAMPG) return LAMPG;
+  const open = (rt, rb, h, seg, y) => { const g = new THREE.CylinderGeometry(rt, rb, h, seg, 1, true); g.translate(0, y + h / 2, 0); return g; };
+  const curl = (ax, az) => tubeGeo([[0, 6.35, 0], [ax * 0.12, 6.92, az * 0.12], [ax * 0.46, 7.16, az * 0.46], [ax * 0.78, 7.04, az * 0.78], [ax * 0.86, 6.74, az * 0.86]], 0.045);
+  const dome = new THREE.ConeGeometry(0.32, 0.3, 6, 1, true); dome.translate(0, 6.62, 0);
+  return LAMPG = { pole: open(0.065, 0.12, 6.5, 5, 0), poleHi: open(0.05, 0.065, 0.75, 4, 6.5), collar: open(0.12, 0.17, 1.35, 5, 0), s: curl(0, -1), a: curl(1, 0), b: curl(-1, 0), dome, glass: open(0.21, 0.1, 0.3, 6, 6.17), sea: open(0.06, 0.1, 6.4, 5, 0) };
+}
+export function lampPost(x, y, z, ang, kind = 'double') {
+  const G = lampGeos(), M = frame(x, y, z, Math.sin(ang), Math.cos(ang));
+  if (kind === 'sea') {
+    part('flat', G.sea, { M, c: '#2c6652', noao: true });
+    bx('flat', M, -0.62, 0.62, 6.34, 6.42, -0.04, 0.04, { c: '#2c6652', noao: true });
+    for (const sg of [-1, 1]) bx('flat', M, sg * 0.68 - 0.22, sg * 0.68 + 0.22, 6.36, 6.54, -0.16, 0.16, { c: '#8f948f', noao: true, rz: sg * 0.18 });
+    return;
+  }
+  const c = '#2358a8';
+  part('flat', G.pole, { M, c, noao: true });
+  part('flat', G.collar, { M, c: '#1d4b90', noao: true });
+  for (const [geo, dx, dz] of kind === 'single' ? [[G.s, 0, -0.86]] : [[G.a, 0.86, 0], [G.b, -0.86, 0]]) {
+    part('flat', geo, { M, c, noao: true });
+    part('flat', G.dome, { M, p: [dx, 0, dz], c: '#1b3f73', noao: true });
+    part('flat', G.glass, { M, p: [dx, 0, dz], c: '#e9e2c4', noao: true });
+  }
+  if (kind !== 'single') part('flat', G.poleHi, { M, c, noao: true });
+}
+// the last blue post on the beach road stands about here; further south the posts on the sea side are the green ones
+const LIBERTY_SOUTH = -9945;
 function lampLandmark(name, za, zb, step) {
   const zc = (za + zb) / 2;
   return { name, x: landX(zc) - 4, z: zc, radius: Math.abs(zb - za) / 2 + 40, skipIds: [], build: () => {
     defMats(); begin(0);
     for (let z = za; z <= zb; z += step) {
       const f = shoreFrame(z), x = landX(z) - 1.6 * f.nx, zz = z - 1.6 * f.nz;
-      lampPost(x, groundY(x, zz), zz, Math.atan2(f.nx, f.nz));
+      lampPost(x, groundY(x, zz), zz, Math.atan2(f.nx, f.nz), z < LIBERTY_SOUTH ? 'single' : 'sea');
     }
     return end(name);
   } };
@@ -296,10 +360,11 @@ function buildHarbour() {
   const rn = RNG(951);
   // the tower: Torre della Tonnara, at the corner of the harbour front where the quay road starts (Wikidata Q113555961, 38.207179 13.326199; five photos of one Mapillary sequence looking at it from 30 to 90 m put it within about 3 m of that point; OSM maps it as the round notch in the w73411051 outline, not as w73411068, which is a 7 m square building 90 m away)
   const tx = TOWER_Q[0], tz = TOWER_Q[1], ty = groundY(tx, tz) - 0.3;
-  cyl('mnStone', 4.3, 4.9, 13.2, 16, { p: [tx, ty, tz] });
-  cyl('mnStone', 4.9, 4.4, 0.9, 16, { p: [tx, ty + 12.6, tz], noao: true });                       // corbelled crown
-  for (let i = 0; i < 12; i++) { const a = i / 12 * 2 * PI; box('mnStone', 1.1, 0.8, 0.8, { p: [tx + Math.cos(a) * 4.7, ty + 13.5, tz + Math.sin(a) * 4.7], ry: -a + PI / 2, noao: true }); }
-  box('dark', 0.45, 1.0, 0.45, { p: [tx + 4.2, ty + 8.5, tz], noao: true });                      // arrow slit
+  cyl('mdlStone', 4.25, 4.9, 12.5, 16, { p: [tx, ty, tz] });
+  cyl('mdlStone', 4.65, 4.65, 1.05, 16, { p: [tx, ty + 12.85, tz], noao: true });                  // the parapet on its corbels
+  for (let i = 0; i < 28; i++) { const a = i / 28 * 2 * PI; box('mdlStone', 0.42, 0.55, 0.62, { p: [tx + Math.cos(a) * 4.4, ty + 12.35, tz + Math.sin(a) * 4.4], ry: -a + PI / 2, noao: true }); }
+  for (let i = 0; i < 20; i++) { const a = i / 20 * 2 * PI; box('mdlStone', 0.8, 0.45, 0.42, { p: [tx + Math.cos(a) * 4.42, ty + 13.9, tz + Math.sin(a) * 4.42], ry: -a + PI / 2, noao: true }); }
+  box('dark', 0.55, 0.75, 0.3, { p: [tx, ty + 7.4, tz + 4.4], noao: true }); cyl('dark', 0.275, 0.275, 0.3, 8, { M: mul(tr(tx, ty + 8.15, tz + 4.25), new THREE.Matrix4().makeRotationX(PI / 2)), noao: true });   // the arched window towards the harbour
   box('dark', 1.1, 2.0, 0.5, { p: [tx - 4.5, ty + 0.4, tz + 0.5], ry: 0.2, noao: true });          // door
   // hauled-out boats on the slipway beside the tower, bows to the sea (east), in two ragged rows
   for (let r = 0; r < 2; r++) for (let i = 0; i < 6; i++) {
@@ -327,7 +392,7 @@ function buildHarbour() {
   // the pontile: a plain concrete jetty with a railing, out from the quay
   const px0 = -3004, pz0 = -10122, dx = 0.44, dz = 0.9, pl = 42, M = mul(tr(px0, 0, pz0), new THREE.Matrix4().makeRotationY(Math.atan2(dx, dz)));
   bx('marble', M, -1.8, 1.8, 0.2, 0.9, 0, pl, { c: '#bdb8a8', noao: true });
-  for (let z = 2; z < pl; z += 6) for (const sg of [-1, 1]) cyl('mnStone', 0.22, 0.26, 3.2, 5, { M, p: [sg * 1.6, -2.6, z], noao: true });
+  for (let z = 2; z < pl; z += 6) for (const sg of [-1, 1]) cyl('mdlStone', 0.22, 0.26, 3.2, 5, { M, p: [sg * 1.6, -2.6, z], noao: true });
   return end('Mondello harbour');
 }
 export const MN_HARBOUR = { name: 'Mondello harbour and tower', x: -3010, z: -10090, radius: 130, skipIds: [], build: buildHarbour };
@@ -414,20 +479,90 @@ function buildHotelLaTorre() {
   defMqMats();
   const pts = pairsOf(HOTEL_RING), gr = groundRange(pts), gy = gr.lo + (gr.hi - gr.lo) * 0.6 + 0.2, H = 13.0;   // the terrace the hotel stands on: nearer the high side than the low one, the rest is a rock footing
   begin(gy);
-  prism('mnStone', pts, gr.lo - 2, gy, { c: '#cbb995' });
+  prism('mdlStone', pts, gr.lo - 2, gy, { c: '#cbb995' });
   shell('hoWall', pts, [], gy, H, { roof: '#cfcbc2', cc: '#f1eee6' });
   // rooftop: a plant room, a terrace rail
   const c = centroid(pts);
   bx('mqWall', frame(c[0] - 6, gy + H + 0.15, c[1] + 4, 0, 1), -3.5, 3.5, 0, 2.6, -2.2, 2.2, { c: '#f4f2ec' });
   // the watchtower on the rock at the end of the promontory: round grey rubble, a broken crown (some merlons gone), a door high up, two slits, corbels
   const tx = TOWER_C[0], tz = TOWER_C[1], tg = groundRange([[tx - 4, tz], [tx + 4, tz], [tx, tz - 4], [tx, tz + 4]]), ty = tg.hi;
-  cyl('mnStone', 4.2, 4.9, 9.8 + (ty - tg.lo) + 1.5, 16, { p: [tx, tg.lo - 1.5, tz] });
-  cyl('mnStone', 4.7, 4.3, 0.8, 16, { p: [tx, ty + 9.4, tz], noao: true });                                    // the corbelled crown
-  for (let k = 0; k < 14; k++) { if ([2, 3, 9].includes(k)) continue; const a = k * 2 * PI / 14; box('mnStone', 0.9, 1.2, 0.55, { p: [tx + Math.cos(a) * 4.35, ty + 10.2, tz + Math.sin(a) * 4.35], ry: -a + PI / 2, noao: true }); }
+  cyl('mdlStone', 4.2, 4.9, 9.8 + (ty - tg.lo) + 1.5, 16, { p: [tx, tg.lo - 1.5, tz] });
+  cyl('mdlStone', 4.7, 4.3, 0.8, 16, { p: [tx, ty + 9.4, tz], noao: true });                                    // the corbelled crown
+  for (let k = 0; k < 14; k++) { if ([2, 3, 9].includes(k)) continue; const a = k * 2 * PI / 14; box('mdlStone', 0.9, 1.2, 0.55, { p: [tx + Math.cos(a) * 4.35, ty + 10.2, tz + Math.sin(a) * 4.35], ry: -a + PI / 2, noao: true }); }
   box('dark', 1.0, 1.8, 0.3, { p: [tx + 4.2, ty + 3.4, tz], ry: PI / 2, noao: true });                           // the door, a storey up
   for (const a of [1.9, 4.4]) box('dark', 0.3, 1.0, 0.3, { p: [tx + Math.cos(a) * 4.45, ty + 6.4, tz + Math.sin(a) * 4.45], ry: -a + PI / 2, noao: true });
   return end('Hotel La Torre');
 }
 export const MN_HOTEL = { name: 'Hotel La Torre', x: -2770, z: -10560, radius: 100, skipIds: ['w73395786', 'w285428887'], build: buildHotelLaTorre };
 
-export const MONDELLO_LANDMARKS = [...MN_CABINS, ...MN_LAMPS, MN_HARBOUR, MN_QUAY, MN_HOTEL];
+// ====================================================================================================
+// The Liberty palazzo on the corner of Piazza Mondello and the harbour (the front part of OSM w73395733): cream, a ground storey with the chemist's, two floors of tall brown shutters with iron
+// balconies, a parapet with little pinnacles and, at the east end of the harbour front, a square turret with arched windows. The rest of the block keeps the harbour houses' plain fronts.
+// Photos: Wikimedia Commons "Mondello BW 2012-10-09 13-59-24" (the harbour front of the palazzo), Mapillary 2019 4101274106595956 (the corner and the side towards the road).
+// Not verified: the back, the other houses of the block (plain), the exact heights.
+// ====================================================================================================
+const PAL_RING = [-3009.1, -10174.6, -3005.4, -10168.8, -3006.1, -10166.7, -3001.5, -10159.7, -2992.8, -10165.3, -2990.3, -10165.5, -2984.4, -10170.0, -2988.5, -10177.1, -2985.5, -10179.6, -2974.3, -10186.3, -2980.9, -10197.8, -2984.6, -10195.4, -2987.6, -10198.4, -2992.8, -10196.3, -2993.9, -10197.2, -2996.0, -10196.2, -2994.3, -10192.4, -2996.2, -10190.9, -2998.3, -10191.3, -3004.2, -10189.4, -3009.4, -10183.3, -3006.3, -10180.3, -2999.1, -10184.5, -2998.1, -10182.6];
+// the two fronts, each from its left end to its right end as seen from outside: the side towards the road, then the one towards the harbour
+const PAL_W = [[-3006.1, -10166.7], [-3001.5, -10159.7]], PAL_S = [[-3001.5, -10159.7], [-2988.0, -10167.1]];
+const palFace = ([A, B], out) => { const dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz), nx = -dz / l, nz = dx / l; return { l, nx, nz, A: [A[0] + nx * out, A[1] + nz * out], B: [B[0] + nx * out, B[1] + nz * out] }; };
+function buildPalazzo() {
+  defMqMats();
+  defMat('mqPink', 128, 392, [4, 12.2], (g, w, h) => {   // one bay: the ground floor door with its iron, two floors of shutters in cream stone frames
+    const sx = w / 4, sy = h / 12.2, X = (s) => s * sx, Y = (y) => h - y * sy, R = (x0, x1, y0, y1, c) => { g.fillStyle = c; g.fillRect(X(x0), Y(y1), X(x1 - x0), (y1 - y0) * sy); };
+    R(0, 4, 0, 12.2, '#eacfa6'); noiseDots(g, w, h, 500, 2, 987, ['rgba(150,110,70,0.1)', 'rgba(255,242,215,0.16)']);
+    for (let y = 0.5; y < 4.0; y += 0.45) R(0, 4, y, y + 0.05, 'rgba(120,88,55,0.35)');
+    g.fillStyle = '#f4e3c2'; g.beginPath(); g.moveTo(X(1.0), Y(0.1)); g.lineTo(X(1.0), Y(2.5)); g.arc(X(2), Y(2.5), X(1.0), PI, 0); g.lineTo(X(3.0), Y(0.1)); g.fill(); g.fillStyle = '#2c2825'; g.beginPath(); g.moveTo(X(1.18), Y(0.1)); g.lineTo(X(1.18), Y(2.5)); g.arc(X(2), Y(2.5), X(0.82), PI, 0); g.lineTo(X(2.82), Y(0.1)); g.fill();
+    g.fillStyle = 'rgba(200,190,150,0.55)'; for (let x = 1.35; x < 2.8; x += 0.28) g.fillRect(X(x), Y(2.5), 1, 2.4 * sy);
+    R(0, 4, 4.05, 4.35, '#f6e8ca');
+    for (const y of [4.45, 8.35]) { R(1.1, 2.9, y, y + 3.0, '#f6e8ca'); R(1.28, 2.72, y, y + 2.82, '#4a3226'); R(1.97, 2.03, y, y + 2.82, '#251710'); g.fillStyle = 'rgba(20,10,5,0.4)'; for (let k = y + 0.2; k < y + 2.7; k += 0.2) g.fillRect(X(1.28), Y(k), X(1.44), 1); R(1.2, 2.8, y + 3.12, y + 3.5, '#dfc096'); }
+    R(0, 4, 11.75, 12.2, '#f6e8ca'); R(0, 4, 11.6, 11.75, 'rgba(90,60,35,0.4)');
+    streaks(g, w, h, 6, 988, 0.1, 90);
+  });
+  defMat('mqSign', 128, 24, [5, 0.9], (g, w, h) => { g.fillStyle = '#eacfa6'; g.fillRect(0, 0, w, h); g.fillStyle = '#f7f2e4'; g.font = '700 17px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.strokeStyle = '#6a5438'; g.lineWidth = 3; g.strokeText('FARMACIA', w / 2, h / 2 + 1); g.fillText('FARMACIA', w / 2, h / 2 + 1); });
+  const pts = pairsOf(PAL_RING), gr = groundRange(pts), gy = gr.lo + 0.1, H = 10.4, CREAM = '#f2dfba', IRON = '#2a2a2e';
+  begin(gy);
+  shell('mqWall', pts, [], gy, H, { lo: gr.lo - 1.5, roof: '#9b948a', cc: '#e9d9b4' });
+  const W = palFace(PAL_W, 0.14), S = palFace(PAL_S, 0.42);
+  {   // the two fronts meet where their lines cross
+    const ax = W.B[0] - W.A[0], az = W.B[1] - W.A[1], bx0 = S.B[0] - S.A[0], bz0 = S.B[1] - S.A[1], t = ((S.A[0] - W.A[0]) * bz0 - (S.A[1] - W.A[1]) * bx0) / (ax * bz0 - az * bx0), c = [W.A[0] + ax * t, W.A[1] + az * t];
+    W.B = c; S.A = c; for (const F of [W, S]) F.l = Math.hypot(F.B[0] - F.A[0], F.B[1] - F.A[1]);
+  }
+  const near = (F, x, z) => { const dx = F.B[0] - F.A[0], dz = F.B[1] - F.A[1], u = Math.max(0, Math.min(1, ((x - F.A[0]) * dx + (z - F.A[1]) * dz) / (dx * dx + dz * dz))); return Math.hypot(x - F.A[0] - dx * u, z - F.A[1] - dz * u) < 1.6; };
+  for (let i = 0; i < pts.length; i++) {   // the other houses of the block
+    const A = pts[i], B = pts[(i + 1) % pts.length], dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz), mx = (A[0] + B[0]) / 2, mz = (A[1] + B[1]) / 2;
+    if (L < 3.2 || near(W, mx, mz) || near(S, mx, mz)) continue;
+    let nx = dz / L, nz = -dx / L; if (inRing(pts, mx + nx * 0.5, mz + nz * 0.5)) { nx = -nx; nz = -nz; }
+    panel('mqFacade', L, H, { M: frame(mx + nx * 0.03, gy, mz + nz * 0.03, nx, nz), uvk: [Math.max(1, Math.round(L / 3)), 1], c: '#e9cf9c', noao: false });
+  }
+  // the palazzo's own mass and fronts
+  const back = [S.B[0] - S.nx * 8.4, S.B[1] - S.nz * 8.4], back2 = [W.A[0] - W.nx * 5.5, W.A[1] - W.nz * 5.5];
+  prism('flat', [[W.A[0] - W.nx * 0.2, W.A[1] - W.nz * 0.2], [S.A[0] - S.nx * 0.2, S.A[1] - S.nz * 0.2], [S.B[0] - S.nx * 0.2, S.B[1] - S.nz * 0.2], back, back2], gy + H, gy + 12.2, { c: '#e6cca0' });
+  for (const F of [W, S]) {
+    const M = frame((F.A[0] + F.B[0]) / 2, gy, (F.A[1] + F.B[1]) / 2, F.nx, F.nz), l = F.l, n = Math.max(1, Math.round(l / 3.9));
+    bx('flat', M, -l / 2, l / 2, gr.lo - gy - 1.0, 12.2, -0.5, -0.02, { c: '#e6cca0' });
+    panel('mqPink', l, 12.2, { M, uvk: [n, 1] });
+    for (const x of [-l / 2 + 0.2, l / 2 - 0.2]) bx('flat', M, x - 0.22, x + 0.22, 0, 12.2, 0, 0.1, { c: CREAM });
+    bx('flat', M, -l / 2 - 0.15, l / 2 + 0.15, 12.2, 12.45, -0.4, 0.45, { c: CREAM }); bx('flat', M, -l / 2, l / 2, 12.45, 13.1, -0.2, 0.05, { c: '#e9d0a6' });
+    for (let k = 0; k <= n * 2; k++) { const x = -l / 2 + 0.2 + k * (l - 0.4) / (n * 2); bx('flat', M, x - 0.15, x + 0.15, 13.1, 13.45, -0.22, 0.08, { c: CREAM }); sphere('flat', 0.17, { M, p: [x, 13.6, -0.07], c: CREAM, seg: 4 }); }
+    // the balconies: one long one a floor on the side, one a bay at the ends of the harbour front and a long one between them
+    const runs = F === W ? [[-l / 2 + 0.6, l / 2 - 0.6]] : [[-l / 2 + 0.6, -l / 2 + l / n - 0.4], [-l / 2 + l / n + 0.4, l / 2 - l / n - 0.4], [l / 2 - l / n + 0.4, l / 2 - 0.6]];
+    for (const y of [4.3, 8.2]) for (const [x0, x1] of runs) {
+      bx('flat', M, x0, x1, y, y + 0.18, 0, 0.75, { c: CREAM }); rail(mul(M, tr((x0 + x1) / 2, y + 0.18, 0.72)), x1 - x0, 0.95, { c: IRON });
+      for (const x of [x0 + 0.25, x1 - 0.25]) bx('flat', M, x - 0.12, x + 0.12, y - 0.4, y, 0, 0.45, { c: '#dfc49a' });
+    }
+    if (F === W) panel('mqSign', 5.0, 0.9, { M: mul(M, tr(0, 3.2, 0.06)) });
+  }
+  // the turret at the east end of the harbour front
+  const T = frame(S.B[0] - (S.B[0] - S.A[0]) / S.l * 2.1 - S.nx * 1.9, gy, S.B[1] - (S.B[1] - S.A[1]) / S.l * 2.1 - S.nz * 1.9, S.nx, S.nz);
+  bx('flat', T, -1.75, 1.75, 12.2, 16.2, -1.75, 1.75, { c: '#ecd3a8' });
+  const arch = (hw, y1) => { const q = new THREE.Shape(); q.moveTo(-hw, 0); q.lineTo(hw, 0); q.lineTo(hw, y1 - hw); q.absarc(0, y1 - hw, hw, 0, PI, false); q.closePath(); return q; };
+  for (let k = 0; k < 4; k++) { const Mt = mul(T, mul(rotY(k * PI / 2), tr(0, 13.4, 1.72))); extrude('flat', arch(0.75, 2.2), 0.07, { M: Mt, c: CREAM, cs: 5 }); extrude('flat', arch(0.52, 1.95), 0.11, { M: Mt, c: '#43301f', cs: 5 }); }
+  bx('flat', T, -2.0, 2.0, 16.2, 16.5, -2.0, 2.0, { c: CREAM });
+  for (const a of [-1, 1]) for (const b of [-1, 1]) { bx('flat', T, a * 1.75 - 0.22, a * 1.75 + 0.22, 16.5, 17.1, b * 1.75 - 0.22, b * 1.75 + 0.22, { c: CREAM }); sphere('flat', 0.2, { M: T, p: [a * 1.75, 17.28, b * 1.75], c: CREAM, seg: 4 }); }
+  for (let k = 0; k < 4; k++) rail(mul(T, mul(rotY(k * PI / 2), tr(0, 16.5, 1.75))), 3.1, 0.7, { c: IRON });
+  return end('Palazzo on Piazza Mondello');
+}
+const PAL_WALLS = (() => { const F = palFace(PAL_S, 0.42); return [[...F.A, ...F.B].map(v => Math.round(v * 10) / 10)]; })();
+export const MN_PALAZZO = { name: 'Palazzo on Piazza Mondello', x: -2995, z: -10178, radius: 30, skipIds: ['w73395733'], walls: PAL_WALLS, build: buildPalazzo };
+
+export const MONDELLO_LANDMARKS = [...MN_CABINS, ...MN_LAMPS, MN_HARBOUR, MN_QUAY, MN_HOTEL, MN_PALAZZO];

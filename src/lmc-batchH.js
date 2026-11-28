@@ -6,7 +6,10 @@
 //     read: two storeys; ground floor in dark weathered tufa ashlar with few big barred windows in stone frames; a Gothic-Catalan portal with twisted rope mouldings, clustered jamb shafts and three diamond medallions (arms in the middle, sunburst each side) over it;
 //     string course; first floor honey tufa with triple-light Gothic windows (trefoil tracery, two white colonnettes); moulded cornice with gargoyles under a low crenellated parapet; a square machicolated crenellated tower at one end of the front.
 //   Mirto: "Palermo-AP-p1070637.jpg", "Palermo-AP-p1070638.jpg" (the Palazzo Mirto category holds no photo of the street front; the front is NOT verified beyond the gate).
-//     read: the street gate is a rusticated tufa frame with a round arch, a heavy cornice and an attic carrying the princely coat of arms (double eagle, crown) and a flaming urn at each end; behind and beside it the walls are pale ochre plaster with blue shutters and curved iron balconies.
+//     read: the street gate is a free standing screen of rusticated tufa with a round arch (a fan of iron spokes in it), pilasters with masks, a heavy cornice and an attic carrying the princely coat of arms (double eagle, crown) and a flaming urn at each end,
+//     open sky over it; through the arch a court and the cream wing across it: glazed arches under an iron canopy, blue shutters, curved iron balconies. The gate is built so, in a gap opened from the outline to the mapped court behind the front (collision
+//     unchanged, the iron leaves are drawn closed); the wing across the court is laid on that court's far wall, the bay count and the sizes read off the one photo.
+//     searched again for the rest of the Via Merlo front and found none (Commons has the gate and interiors only; Mapillary has no frame looking at it): the plaster bays either side of the gate are NOT verified.
 //   Butera: "Palazzo Butera facciata.jpg", "Foro Italico 10.jpg", "Camminamento Mura delle Cattive.jpg", "Palermo - Palazzo Butera - 2026-09-03 10-50-04 001.jpg"
 //     read: the long sea front stands behind a tall pink-ochre terrace wall (old city wall, plaster gone in patches, small barred windows) with a railing, urns on piers and a garden; above it a cream plastered palace with honey-stone strips and window frames,
 //     a row of windows with curved hoods and iron balconies, a cornice and a balustrade with urns on the roof line; a square belvedere tower at the north end; the front bends slightly (four runs).
@@ -16,7 +19,8 @@
 // Footprints identified in world/tiles: Abatellis w143737450 and Butera w86882286 and Mirto r403480.0 carry their names (n field) in tile 1_-1; Sclafani w279883571 is anonymous in tile -1_0, found by position
 //   (next to the Palazzo dei Normanni side of Piazza della Vittoria, the 63 m edge runs 4 m off the road Piazza San Giovanni Decollato, and the real palace stands at 38.1125 N 13.3568 E).
 // Not verified: the number of bays of Abatellis, Butera and Mirto beyond what the photos show, the side and back walls of all four, Mirto's street front, which end of the Abatellis front has the tower (right seen from the street), the exact Butera tower position.
-import { PI, bx, cyl, lathe, sphere, begin, end, defMat, mul, tr, frame, prism, panel, pairsOf, groundRange, groundY, initShared, noiseDots, streaks, paintAshlar, crenel, balus, rail, RNG } from './lmc-kit.js';
+import * as THREE from 'three';
+import { PI, extrude, bx, cyl, lathe, sphere, begin, end, defMat, mul, tr, frame, prism, panel, pairsOf, groundRange, groundY, initShared, noiseDots, streaks, paintAshlar, crenel, balus, rail, RNG } from './lmc-kit.js';
 
 // ---------- shared helpers ----------
 const mk = (g, w, h, wm, hm) => { const sx = w / wm, sy = h / hm, X = x => x * sx, Y = y => h - y * sy; return { sx, sy, X, Y, R: (x0, y0, x1, y1, c) => { g.fillStyle = c; g.fillRect(X(x0), Y(y1), (x1 - x0) * sx, (y1 - y0) * sy); } }; };
@@ -173,7 +177,8 @@ export const ABATELLIS = { name: 'Palazzo Abatellis', x: 868, z: -95, radius: 45
 // 2. Palazzo Mirto
 // ====================================================================================================
 const MI = { id: 'r403480.0', p: [579.5, -100.1, 599.8, -62, 621.9, -80.7, 617.8, -89.4, 609, -107.9], holes: [[598, -84.6, 601.7, -78.3, 609.3, -83.6, 605.4, -90.4], [592.7, -95.7, 595.4, -89.9, 602.8, -93.7, 600.3, -98.4]] };
-const MI_H = 20.2, MI_L = Math.hypot(609 - 579.5, -107.9 + 100.1), MI_GW = MI_L / 3, MI_BW = MI_L / 6, MI_GH = 9.6;
+const MI_H = 20.2, MI_BW = 5.4, MI_CW = 8.4;
+const MI_CX = -0.4, MI_GW = 7.9, MI_GH = 7.5, MI_AR = 1.75, MI_SPR = 3.4;   // the gate screen: its middle along the front, width, height to the top of the attic, half width and springing of the arch
 function paintMiWall(g, w, h) {   // one bay 5.4 m wide, 20.2 m tall: ochre plaster, blue shutters, curved iron balconies
   const m = mk(g, w, h, MI_BW, MI_H), { R, X, Y, sx, sy } = m, cx = MI_BW / 2, r = RNG(9401);
   g.fillStyle = '#dbc08e'; g.fillRect(0, 0, w, h);
@@ -203,61 +208,98 @@ function paintMiWall(g, w, h) {   // one bay 5.4 m wide, 20.2 m tall: ochre plas
   for (let i = 0; i < 7; i++) { const x = r() * MI_BW * 0.8, y = 3 + r() * 15, pw = 0.5 + r() * 1.1, ph = 0.4 + r() * 0.9; R(x, y, x + pw, y + ph, i % 2 ? '#b99d73' : '#c4a883'); R(x, y, x + pw, y + 0.04, 'rgba(60,40,22,0.35)'); }
   wear(g, w, h, 9410, { lime: 6, soot: 12, foot: h * 0.07 });
 }
-function paintMiGate(g, w, h) {   // the street gate: 8.8 m wide, 8.2 m to the attic
+function paintMiGate(g, w, h) {   // the gate screen: MI_GW x MI_GH m, rusticated tufa; the arch itself is cut in the geometry
   const m = mk(g, w, h, MI_GW, MI_GH), { R, X, Y, sx, sy } = m, cx = MI_GW / 2;
-  paintAshlar(g, w, h, MI_GW, MI_GH, 0.55, 1.3, '#b99c62', '#7c653a', 9501, 1.7, 0.1);
-  blotch(g, w, h, 110, 9502, ['rgba(220,190,120,0.18)', 'rgba(50,32,14,0.2)', 'rgba(110,120,70,0.12)'], w / 18, h / 26);
-  for (let y = 0.35; y < 5.8; y += 0.9) { R(0, y, 2.3, y + 0.5, 'rgba(235,205,140,0.13)'); R(MI_GW - 2.3, y + 0.45, MI_GW, y + 0.95, 'rgba(235,205,140,0.13)'); }   // the jamb quoins
-  const arch = roundArchPts(cx, 3.95, 2.1, 16);
-  fillPoly(g, m, [[cx - 2.1, 0]].concat(arch, [[cx + 2.1, 0]]), '#16120d');
-  // the court seen through: warm plaster, blue shutters, a balcony, the fan of iron spokes in the arch
-  R(cx - 2.0, 0, cx + 2.0, 3.0, '#6e5a38'); R(cx - 2.0, 0, cx + 2.0, 0.9, '#3a3026');
-  R(cx - 1.2, 1.0, cx + 1.8, 3.4, '#a58d5c'); for (let k = 0; k < 4; k++) R(cx - 1.0 + k * 0.75, 1.1, cx - 0.55 + k * 0.75, 2.7, '#4b5e78');
-  g.save(); pathPts(g, m, [[cx - 2.1, 3.95]].concat(arch)); g.clip(); g.strokeStyle = 'rgba(190,200,190,0.55)'; g.lineWidth = 1.4;
-  for (let k = 0; k <= 16; k++) { const a = PI * k / 16; g.beginPath(); g.moveTo(X(cx), Y(3.95)); g.lineTo(X(cx + 2.2 * Math.cos(a)), Y(3.95 + 2.2 * Math.sin(a))); g.stroke(); } g.restore();
-  R(cx - 2.1, 3.9, cx + 2.1, 3.98, '#2c3a34');
-  bandPts(g, m, roundArchPts(cx, 3.95, 2.3, 18), 0.38, '#b79660', 'rgba(50,34,14,0.55)', 0.42);   // voussoirs
-  R(0, 6.15, MI_GW, 6.45, '#8c7342'); R(0, 6.45, MI_GW, 7.1, '#b09257'); R(0, 7.1, MI_GW, 7.28, '#8a7140');   // entablature
-  for (let x = 0.3; x < MI_GW; x += 0.7) R(x, 6.2, x + 0.3, 6.45, 'rgba(40,28,12,0.4)');
-  g.fillStyle = '#a5874f'; g.fillRect(0, Y(MI_GH), w, (MI_GH - 7.28) * sy);   // attic
-  for (let y = 7.3; y < MI_GH; y += 0.38) R(0, y, MI_GW, y + 0.04, 'rgba(50,34,14,0.45)');
-  R(cx - 2.2, 7.3, cx - 2.1, MI_GH, 'rgba(50,34,14,0.4)'); R(cx + 2.1, 7.3, cx + 2.2, MI_GH, 'rgba(50,34,14,0.4)');
-  for (const x of [cx - 1.6, cx + 1.6]) { const gr = g.createLinearGradient(0, Y(6.2), 0, Y(4.6)); gr.addColorStop(0, 'rgba(90,110,40,0.45)'); gr.addColorStop(1, 'rgba(90,110,40,0)'); g.fillStyle = gr; g.fillRect(X(x), Y(6.2), 7, 1.5 * sy); }
-  // carved masks over the springing, drapes in the spandrels
-  for (const x of [cx - 2.9, cx + 2.9]) { g.fillStyle = '#c1a56f'; g.beginPath(); g.ellipse(X(x), Y(5.4), 0.3 * sx, 0.38 * sy, 0, 0, 2 * PI); g.fill(); R(x - 0.05, 4.3, x + 0.05, 5.0, '#7c6338'); }
-  wear(g, w, h, 9510, { lime: 4, soot: 14, foot: h * 0.12 });
+  paintAshlar(g, w, h, MI_GW, MI_GH, 0.5, 1.2, '#c4a264', '#80663a', 9501, 1.6, 0.12);
+  blotch(g, w, h, 190, 9502, ['rgba(214,178,100,0.2)', 'rgba(44,28,12,0.24)', 'rgba(100,108,60,0.12)'], w / 20, h / 28);
+  for (let y = 0.35; y < MI_SPR; y += 0.8) { R(cx - 2.55, y, cx - 1.75, y + 0.42, 'rgba(236,204,136,0.2)'); R(cx + 1.75, y, cx + 2.55, y + 0.42, 'rgba(236,204,136,0.2)'); R(cx - 2.55, y - 0.06, cx - 1.75, y, 'rgba(30,18,6,0.45)'); R(cx + 1.75, y - 0.06, cx + 2.55, y, 'rgba(30,18,6,0.45)'); }
+  bandPts(g, m, roundArchPts(cx, MI_SPR, MI_AR + 0.34, 22), 0.62, '#b08d4a', 'rgba(40,26,8,0.6)', 0.55);   // voussoirs
+  // the pilasters with a mask, a drop of flowers and a sunk panel
+  for (const x of [cx - 3.05, cx + 3.05]) {
+    R(x - 0.5, 0, x + 0.5, 5.9, 'rgba(225,190,115,0.18)'); R(x - 0.5, 0, x - 0.42, 5.9, 'rgba(245,215,150,0.4)'); R(x + 0.4, 0, x + 0.5, 5.9, 'rgba(30,18,6,0.5)');
+    R(x - 0.3, 0.9, x + 0.3, 4.4, 'rgba(60,40,15,0.3)'); R(x - 0.22, 0.98, x + 0.22, 4.32, 'rgba(190,155,90,0.35)');
+    g.fillStyle = '#e0c184'; g.beginPath(); g.ellipse(X(x), Y(5.0), 0.22 * sx, 0.28 * sy, 0, 0, 2 * PI); g.fill();
+    g.fillStyle = 'rgba(48,30,10,0.6)'; for (const k of [-0.08, 0.08]) g.fillRect(X(x + k) - 1, Y(5.08), 2, 2); g.fillRect(X(x - 0.07), Y(4.86), 0.14 * sx, 1.5);
+    for (let i = 0; i < 9; i++) { g.fillStyle = i % 2 ? '#dcc088' : '#a9884c'; g.beginPath(); g.arc(X(x + (i % 3 - 1) * 0.09), Y(4.1 - i * 0.2), 0.09 * sx, 0, 2 * PI); g.fill(); }
+    for (const sg of [-1, 1]) { g.strokeStyle = '#e0c184'; g.lineWidth = 2.2; g.beginPath(); g.moveTo(X(x + sg * 0.15), Y(5.1)); g.quadraticCurveTo(X(x + sg * 0.3), Y(4.6), X(x + sg * 0.46), Y(5.0)); g.stroke(); }
+  }
+  g.fillStyle = '#e0c184'; g.beginPath(); g.ellipse(X(cx), Y(5.65), 0.2 * sx, 0.27 * sy, 0, 0, 2 * PI); g.fill();
+  g.strokeStyle = '#e0c184'; g.lineWidth = 2.5; for (const sg of [-1, 1]) { g.beginPath(); g.moveTo(X(cx + sg * 0.2), Y(5.65)); g.quadraticCurveTo(X(cx + sg * 0.6), Y(5.2), X(cx + sg * 1.05), Y(5.6)); g.stroke(); }
+  R(0, 5.9, MI_GW, 6.15, '#a4854c'); R(0, 6.15, MI_GW, 6.5, '#d3b472'); R(0, 6.12, MI_GW, 6.17, 'rgba(30,18,6,0.5)');
+  R(0, 6.5, MI_GW, MI_GH, '#c6a564'); for (let y = 6.55; y < MI_GH; y += 0.36) R(0, y, MI_GW, y + 0.04, 'rgba(40,26,8,0.45)'); R(cx - 3.0, 6.62, cx + 3.0, 6.68, 'rgba(240,210,140,0.35)');
+  wear(g, w, h, 9510, { lime: 4, soot: 16, foot: h * 0.12 });
+}
+// the palace wing across the court, seen through the gate: four glazed arches under an iron canopy, tall windows with blue shutters on curved iron balconies, cream plaster
+function paintMiCourt(g, w, h) {
+  const m = mk(g, w, h, MI_CW, MI_H), { R, X, Y, sx, sy } = m, bw = MI_CW / 4;
+  g.fillStyle = '#d9c699'; g.fillRect(0, 0, w, h); blotch(g, w, h, 260, 9602, ['rgba(255,240,200,0.12)', 'rgba(150,105,65,0.09)'], w / 9, h / 34);
+  R(0, 0, MI_CW, 0.6, '#8f7d5d');
+  for (let i = 0; i < 4; i++) {
+    const cx = bw * (i + 0.5);
+    fillPoly(g, m, [[cx - 0.82, 0.1]].concat(roundArchPts(cx, 2.75, 0.82, 10), [[cx + 0.82, 0.1]]), '#b99a5e');
+    fillPoly(g, m, [[cx - 0.64, 0.1]].concat(roundArchPts(cx, 2.75, 0.64, 10), [[cx + 0.64, 0.1]]), '#27333c');
+    g.strokeStyle = '#4e6378'; g.lineWidth = 1.5; g.beginPath(); for (const k of [-0.3, 0, 0.3]) { g.moveTo(X(cx + k), Y(0.1)); g.lineTo(X(cx + k), Y(2.75)); } for (let a = 1; a < 5; a++) { g.moveTo(X(cx), Y(2.75)); g.lineTo(X(cx + 0.64 * Math.cos(a * PI / 5)), Y(2.75 + 0.64 * Math.sin(a * PI / 5))); } g.moveTo(X(cx - 0.64), Y(1.7)); g.lineTo(X(cx + 0.64), Y(1.7)); g.stroke();
+    for (const [y0, y1] of [[5.7, 8.7], [11.2, 14.0], [16.4, 18.4]]) {
+      R(cx - 0.72, y0 - 0.1, cx + 0.72, y1 + 0.25, '#c9b080'); R(cx - 0.55, y0, cx + 0.55, y1, '#4b6a93'); R(cx - 0.02, y0, cx + 0.02, y1, '#25364e');
+      for (let y = y0 + 0.2; y < y1; y += 0.24) R(cx - 0.5, y, cx + 0.5, y + 0.05, 'rgba(18,28,48,0.45)');
+      R(cx - 1.0, y0 - 0.28, cx + 1.0, y0 - 0.05, '#8d8272');
+    }
+  }
+  R(0, 4.6, MI_CW, 4.9, '#c4aa78'); R(0, MI_H - 1.2, MI_CW, MI_H - 0.5, '#cdb283');
+  wear(g, w, h, 9610, { lime: 5, soot: 8, foot: h * 0.06 });
 }
 function buildMirto() {
   initShared();
   const pts = pairsOf(MI.p), holes = MI.holes.map(pairsOf), gr = groundRange(pts), cen = cenOf(pts), E = edgeFrame(pts, 4, cen, 0);
   const y0 = groundY(E.mx, E.mz), L = E.L, Fy = frame(E.mx, y0, E.mz, E.nx, E.nz), aty = (x, y, z) => mul(Fy, tr(x, y, z));
-  defMat('miWall', 384, 384, [MI_BW, MI_H], paintMiWall);
-  defMat('miGate', 384, 320, [MI_GW, MI_GH], paintMiGate);
+  defMat('miWall', 192, 384, [MI_BW, MI_H], paintMiWall);
+  defMat('miGate', 320, 288, [MI_GW, MI_GH], paintMiGate);
+  defMat('miCourt', 192, 384, [MI_CW, MI_H], paintMiCourt);
   begin(y0);
   const lo = Math.min(gr.lo, y0) - 1.5, top = y0 + MI_H;
-  prism('miWall', pts, lo, top, { holes, uvo: [0, -y0 / MI_H] });
-  prism('flat', pts, top, top + 0.15, { holes, c: '#8f8678' });
-  corniceRing(pts, top - 0.2, '#cfb685', { d: 0.4 });
-  // the front: plaster bays either side, the gate in the middle (a little wider than the passage)
-  const gx0 = -MI_GW / 2, gx1 = MI_GW / 2;
-  for (let i = 0; i < 6; i++) {
-    const x = -L / 2 + MI_BW * (i + 0.5), mid = i === 2 || i === 3, tn = ['#ffffff', '#f4eee2', '#ece4d4', '#faf4e8', '#f1e9da', '#fbf5ea'][i], fl = i % 2 ? -1 : 1;
-    if (!mid) panel('miWall', MI_BW, MI_H, { M: aty(x, 0, 0.04), uvk: [fl, 1], uvo: [fl < 0 ? 1 : 0, 0], c: tn });
-    else panel('miWall', MI_BW, MI_H - MI_GH, { M: aty(x, MI_GH, 0.04), uvk: [fl, (MI_H - MI_GH) / MI_H], uvo: [fl < 0 ? 1 : 0, MI_GH / MI_H], c: tn });   // above the gate the plaster carries on
+  // the outline opened from the street to the first court (the nearer mapped court, a few metres behind the front): the gate stands in the gap as a screen
+  const q = holes[1], onFront = (x) => E.W(x, 0), x0 = MI_CX - MI_GW / 2, x1 = MI_CX + MI_GW / 2;
+  const cut = [pts[0], pts[1], pts[2], pts[3], pts[4], onFront(x0), q[3], q[2], q[1], q[0], onFront(x1)], rest = [holes[0]];
+  prism('miWall', cut, lo, top, { holes: rest, uvo: [0, -y0 / MI_H] });
+  prism('flat', cut, top, top + 0.15, { holes: rest, c: '#a8806a' });
+  corniceRing(cut.slice(0, 6).concat(cut.slice(10)), top - 0.2, '#cfb685', { d: 0.4, skip: (i) => i === 5 });
+  prism('stone', [onFront(x0), q[3], q[2], q[1], q[0], onFront(x1)], y0 - 0.5, y0 + 0.03, { c: '#8f8678' });   // the paving of the court
+  // the front on Via Merlo: two plaster bays on each side of the gate
+  for (const [a, b] of [[-L / 2, x0], [x1, L / 2]]) for (let i = 0; i < 2; i++) { const bw = (b - a) / 2, x = a + bw * (i + 0.5), fl = i % 2 ? -1 : 1; panel('miWall', bw, MI_H, { M: aty(x, 0, 0.04), uvk: [fl, 1], uvo: [fl < 0 ? 1 : 0, 0], c: i % 2 ? '#f1e9da' : '#ffffff' }); }
+  // across the court: the painted wing, its iron canopy over the arches, the curved balconies
+  { const a = q[2], b = q[1], l = Math.hypot(b[0] - a[0], b[1] - a[1]), mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+    let nx = -(b[1] - a[1]) / l, nz = (b[0] - a[0]) / l; if (nx * E.nx + nz * E.nz < 0) { nx = -nx; nz = -nz; }
+    const C = frame(mx, y0, mz, nx, nz), c = (x, y, z) => mul(C, tr(x, y, z));
+    panel('miCourt', l, MI_H, { M: c(0, 0, 0.05) });
+    bx('flat', mul(c(0.5, 4.35, 0), new THREE.Matrix4().makeRotationX(0.24)), -2.7, 2.7, 0, 0.12, 0, 1.25, { c: '#3d4a48', noao: true });
+    for (let k = -2.6; k <= 2.61; k += 0.4) cyl('flat', 0.07, 0.01, 0.3, 4, { M: c(0.5 + k, 3.78, 1.19), c: '#8a8f86', noao: true });
+    for (const x of [-2.1, 3.1]) cyl('flat', 0.05, 0.05, 4.1, 5, { M: c(x, 0, 1.15), c: '#33383a', noao: true });
+    for (const y of [5.45, 10.95]) for (const x of [-l / 8, l / 4 + 0.05]) { bx('flat', C, x - 1.7, x + 1.7, y, y + 0.14, 0, 0.7, { c: '#9a9084', noao: true }); for (let k = -1.7; k <= 1.71; k += 0.34) bx('flat', C, x + k - 0.025, x + k + 0.025, y + 0.14, y + 1.05, 0.66, 0.71, { c: '#22262a', noao: true }); bx('flat', C, x - 1.72, x + 1.72, y + 1.02, y + 1.1, 0.64, 0.73, { c: '#22262a', noao: true }); }
   }
-  bx('miWall', Fy, gx0, gx1, 0, MI_GH, -0.01, 0.04, { c: '#7a6a4a', noao: true });   // backing behind the gate, so no plaster shows round it
-  panel('miGate', MI_GW, MI_GH, { M: aty(0, 0, 0.12), uvk: [1, 1] });
-  bx('stone', Fy, -4.6, 4.6, 6.1, 6.5, 0.04, 0.7, { c: '#d2b27c', noao: true });   // proud cornice
-  bx('stone', Fy, -4.5, 4.5, 7.28, 7.45, 0.04, 0.45, { c: '#cdab74', noao: true });
-  for (const sg of [-1, 1]) bx('stone', Fy, sg * 3.4 - 0.55, sg * 3.4 + 0.55, 0, 6.1, 0.04, 0.35, { c: '#d6b680', noao: true });
-  // the arms: a crowned shield with two spread wings, a flaming urn each end
-  const c = '#d4b680';
-  bx('stone', Fy, -1.1, 1.1, MI_GH, MI_GH + 2.1, 0.0, 0.5, { c, noao: true });
-  for (const sg of [-1, 1]) { const a = Math.min(sg * 1.0, sg * 2.9), b = Math.max(sg * 1.0, sg * 2.9), a2 = Math.min(sg * 2.5, sg * 3.4), b2 = Math.max(sg * 2.5, sg * 3.4); bx('stone', Fy, a, b, MI_GH + 0.2, MI_GH + 1.0, 0.0, 0.35, { c, noao: true }); bx('stone', Fy, a2, b2, MI_GH + 0.6, MI_GH + 1.9, 0.0, 0.3, { c, noao: true }); bx('stone', mul(aty(sg * 2.7, MI_GH + 1.9, 0), frame(0, 0, 0, 0, 1)), -0.55, 0.55, 0, 0.5, 0, 0.28, { c, noao: true, rz: -sg * 0.6 }); }
-  cyl('stone', 0.68, 0.78, 0.55, 8, { M: aty(0, MI_GH + 2.1, 0.25), c, noao: true }); sphere('stone', 0.42, { M: aty(0, MI_GH + 2.9, 0.25), c, seg: 6, noao: true });
-  for (const sg of [-1, 1]) urn(aty(sg * 3.9, MI_GH, 0.3), 1.7, '#d4b680');
+  // the gate: a screen with a round arch, pilasters, a heavy cornice, an attic carrying the arms between two flaming urns; the fan of iron spokes in the arch and the iron leaves closed below
+  const s = new THREE.Shape(); s.moveTo(-MI_GW / 2, 0); s.lineTo(-MI_AR, 0); s.lineTo(-MI_AR, MI_SPR); s.absarc(0, MI_SPR, MI_AR, PI, 0, true); s.lineTo(MI_AR, 0); s.lineTo(MI_GW / 2, 0); s.lineTo(MI_GW / 2, MI_GH); s.lineTo(-MI_GW / 2, MI_GH); s.lineTo(-MI_GW / 2, 0);
+  extrude('miGate', s, 0.85, { M: aty(MI_CX, 0, -0.8), uv: 'keep', uvk: [1 / MI_GW, 1 / MI_GH], uvo: [0.5, 0], cs: 12, noao: true });
+  const G = (x, y, z) => aty(MI_CX + x, y, z), STONE = '#e0c288', IRON = '#2c302e';
+  for (const sg of [-1, 1]) { bx('stone', G(sg * 3.05, 0, 0), -0.52, 0.52, 0, 5.9, 0, 0.22, { c: '#d6b87e' }); bx('stone', G(sg * 3.05, 0, 0), -0.64, 0.64, 0, 0.75, 0, 0.32, { c: '#e0d0ac' }); bx('stone', G(sg * 1.98, 0, 0), -0.23, 0.23, 0, MI_SPR, 0, 0.16, { c: '#cdb076' }); bx('stone', G(sg * 1.98, MI_SPR, 0), -0.34, 0.34, -0.1, 0.14, 0, 0.26, { c: STONE, noao: true }); }
+  bx('stone', G(0, 0, 0), -MI_GW / 2, MI_GW / 2, 5.9, 6.12, -0.85, 0.32, { c: '#c6a768', noao: true }); bx('stone', G(0, 0, 0), -MI_GW / 2 - 0.15, MI_GW / 2 + 0.15, 6.12, 6.42, -0.95, 0.55, { c: STONE, noao: true });
+  bx('stone', G(0, 0, 0), -3.7, 3.7, MI_GH - 0.12, MI_GH + 0.1, -0.9, 0.18, { c: STONE, noao: true });
+  bx('flat', G(0, 0, 0), -0.17, 0.17, 5.2, 5.85, 0, 0.22, { c: STONE, noao: true });
+  for (let k = 1; k < 10; k++) { const a = PI * k / 10; bx('flat', mul(G(0, MI_SPR, -0.45), new THREE.Matrix4().makeRotationZ(a)), 0.3, MI_AR, -0.025, 0.025, 0, 0.05, { c: IRON, noao: true }); }
+  extrude('flat', new THREE.Shape().absarc(0, 0, 0.34, 0, PI, false), 0.07, { M: G(0, MI_SPR, -0.46), c: IRON, cs: 8, noao: true });
+  bx('flat', G(0, 0, 0), -MI_AR, MI_AR, MI_SPR - 0.1, MI_SPR + 0.03, -0.48, -0.36, { c: IRON, noao: true });
+  for (let k = -MI_AR + 0.12; k < MI_AR; k += 0.25) bx('flat', G(0, 0, 0), k - 0.022, k + 0.022, 0.1, 2.2, -0.44, -0.39, { c: '#1e2220', noao: true });
+  for (const y of [0.3, 1.95]) bx('flat', G(0, 0, 0), -MI_AR, MI_AR, y, y + 0.08, -0.45, -0.38, { c: '#1e2220', noao: true });
+  for (const sg of [-1, 1]) bx('flat', G(sg * (MI_AR - 0.1), 0, -0.9), -0.08, 0.08, 0, MI_SPR, -0.9, 0.1, { c: '#2f3a33' });   // a leaf of the gate folded back
+  // the arms: a crowned shield on the two headed eagle, wings spread, a garland under it
+  const flat = (fn, d, c, y, z) => { const sh = new THREE.Shape(); fn(sh); extrude('stone', sh, d, { M: G(0, y, z), c, cs: 6, noao: true }); }, base = MI_GH + 0.1;
+  flat(sh => { sh.moveTo(-1.55, 0); sh.quadraticCurveTo(-1.2, 0.5, -1.35, 1.2); sh.lineTo(-1.75, 1.75); sh.lineTo(-0.7, 1.62); sh.lineTo(-0.55, 2.05); sh.lineTo(0.55, 2.05); sh.lineTo(0.7, 1.62); sh.lineTo(1.75, 1.75); sh.lineTo(1.35, 1.2); sh.quadraticCurveTo(1.2, 0.5, 1.55, 0); sh.lineTo(-1.55, 0); }, 0.35, '#cbae74', base, -0.5);
+  flat(sh => { sh.moveTo(0, -0.42); sh.quadraticCurveTo(1.05, 0.0, 0.85, 0.5); sh.lineTo(-0.85, 0.5); sh.quadraticCurveTo(-1.05, 0.0, 0, -0.42); }, 0.3, '#e3c990', base, -0.12);
+  flat(sh => { sh.moveTo(-0.5, 0.5); sh.quadraticCurveTo(-0.6, 1.1, -0.35, 1.45); sh.lineTo(0.35, 1.45); sh.quadraticCurveTo(0.6, 1.1, 0.5, 0.5); sh.lineTo(-0.5, 0.5); }, 0.3, '#ecd6a4', base, -0.15);
+  for (const sg of [-1, 1]) { sphere('stone', 0.2, { M: G(sg * 0.42, base + 1.72, 0), seg: 6, c: '#e3c990', noao: true }); for (const [x, y, r] of [[0.85, 0.95, 0.2], [1.15, 1.35, 0.17], [0.6, 0.15, 0.17], [1.0, 0.45, 0.14]]) sphere('stone', r, { M: G(sg * x, base + y, -0.06), seg: 6, kz: 0.7, c: '#d8bd84', noao: true }); }
+  cyl('stone', 0.56, 0.48, 0.4, 8, { M: G(0, base + 2.0, -0.32), c: '#e3c990', noao: true }); sphere('stone', 0.34, { M: G(0, base + 2.45, -0.32), seg: 6, ky: 0.8, c: '#d8bd84', noao: true }); sphere('stone', 0.13, { M: G(0, base + 2.8, -0.32), seg: 6, c: '#e3c990', noao: true });
+  for (const sg of [-1, 1]) { bx('stone', G(sg * 2.95, base, -0.35), -0.3, 0.3, 0, 0.25, -0.3, 0.3, { c: STONE, noao: true }); urn(G(sg * 2.95, base + 0.25, -0.35), 1.4, '#d9bf86'); }
   const o = end('Palazzo Mirto');
-  o.userData.solids = [[MI.p, MI.holes, top + 0.15]];
+  o.userData.solids = [[cut.flat(), [holes[0].flat()], top + 0.15]];
   return o;
 }
 export const MIRTO = { name: 'Palazzo Mirto', x: 600, z: -85, radius: 40, skipIds: [MI.id], build: buildMirto };

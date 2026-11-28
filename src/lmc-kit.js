@@ -17,29 +17,44 @@ const DEFS = {};   // key -> { w, h, texM, paint, opts }
 const CACHE = {};  // key -> THREE.MeshStandardMaterial
 let BINS = {}, TRIS = 0, BASEY = 0;
 
-// A shared weathering coat for the painted stone fronts and walls of the monuments (the key names end in Front, Wall, Body, Nave, Tower, Block or Wing): soot and damp that streak down from the
-// ledges, big soft stains, grime thickening towards the foot, and a fine grain, so a flat painted colour reads as old stone. Seeded from the key, so a texture is the same every time it is painted.
+// A shared weathering coat for the painted stone fronts and walls of the monuments: soot and damp that streak down from the ledges, big soft stains, grime thickening towards the foot, and a fine grain,
+// so a flat painted colour reads as old stone. Seeded from the key, so a texture is the same every time it is painted. coatOf() says which textures take it and how strongly:
+// the older models by their key prefix and ending (Front, Wall, Body, Nave, Tower, Block or Wing) at full strength; batches P to S (keys bp.., br.., bs..) every texture but those in BARE, at half strength, because
+// their painters already lay streaks and grime of their own and many of those churches are modern pale plaster.
 const WEATHER = /^(sd|sf|sa|sv|si|gs|tb|sc|ma|ca|st|pd|mg|po|ni|an|ga|tn|mt|vv|or|lu|gr|cw|cm|ag|bf|rm|pr|ba|bb|bc|bd|be|bg|bh)[A-Za-z]*(Front|Wall|Body|Nave|Tower|Block|Wing|F|W)$/;
-function weather(g, w, h, key) {
+const LATE = /^b[pqrs][A-Z][A-Za-z]*$/;
+const BARE = new Set(['bpSFFront', 'bpSFSide', 'brSrDrum']);   // no coat: the Oratorio is painted fully weathered already, and the drum is a glazed lantern
+const TILE = new Set(['bpSNStone', 'bpSSBrick', 'brSlWall']);   // repeating squares: no darkening at the foot or top, it would come back as stripes up the wall
+const coatOf = (key, w) => LATE.test(key) ? (BARE.has(key) ? 0 : 0.5) : WEATHER.test(key) && w >= 96 ? 1 : 0;
+function weather(g, w, h, key, k = 1) {
   let sd = 0; for (let i = 0; i < key.length; i++) sd = (sd * 31 + key.charCodeAt(i)) >>> 0; const r = rng(sd + 77);
-  g.save();
+  g.save(); g.globalAlpha = k;
   for (let i = 0; i < 7; i++) { const x = r() * w, y = r() * h, rad = (0.15 + r() * 0.25) * Math.max(w, h), k = r(), c = k < 0.55 ? '40,30,20' : k < 0.8 ? '255,248,230' : '110,100,80', a = 0.08 + r() * 0.1; const gr = g.createRadialGradient(x, y, 1, x, y, rad); gr.addColorStop(0, `rgba(${c},${a})`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(x - rad, y - rad, 2 * rad, 2 * rad); }
   const n = Math.round(w / 6);
   for (let i = 0; i < n; i++) { const x = r() * w, y0 = r() * h * 0.7, len = h * (0.12 + r() * 0.4), wd = 1 + r() * (w / 70), a = 0.07 + r() * 0.15; const gr = g.createLinearGradient(0, y0, 0, y0 + len); gr.addColorStop(0, `rgba(36,28,20,${a})`); gr.addColorStop(0.8, `rgba(36,28,20,${a * 0.6})`); gr.addColorStop(1, 'rgba(36,28,20,0)'); g.fillStyle = gr; g.fillRect(x, y0, wd, len); }
-  const gb = g.createLinearGradient(0, h, 0, h * 0.78); gb.addColorStop(0, 'rgba(40,30,20,0.28)'); gb.addColorStop(1, 'rgba(40,30,20,0)'); g.fillStyle = gb; g.fillRect(0, h * 0.78, w, h * 0.22);
-  const gt = g.createLinearGradient(0, 0, 0, h * 0.12); gt.addColorStop(0, 'rgba(40,30,20,0.16)'); gt.addColorStop(1, 'rgba(40,30,20,0)'); g.fillStyle = gt; g.fillRect(0, 0, w, h * 0.12);
+  if (!TILE.has(key)) {
+    const gb = g.createLinearGradient(0, h, 0, h * 0.78); gb.addColorStop(0, 'rgba(40,30,20,0.28)'); gb.addColorStop(1, 'rgba(40,30,20,0)'); g.fillStyle = gb; g.fillRect(0, h * 0.78, w, h * 0.22);
+    const gt = g.createLinearGradient(0, 0, 0, h * 0.12); gt.addColorStop(0, 'rgba(40,30,20,0.16)'); gt.addColorStop(1, 'rgba(40,30,20,0)'); g.fillStyle = gt; g.fillRect(0, 0, w, h * 0.12);
+  }
   for (let i = 0; i < w * h / 70; i++) { g.fillStyle = r() < 0.5 ? 'rgba(255,250,235,0.07)' : 'rgba(50,40,28,0.09)'; g.fillRect(r() * w, r() * h, 1 + r() * 1.5, 1 + r() * 1.5); }
   g.restore();
 }
-export function defMat(key, w, h, texM, paint, opts = {}) { if (!DEFS[key]) DEFS[key] = { w, h, texM, paint, opts }; }
+// Keys are shared by every landmark file and the first definition wins, so a second one that differs would silently draw with the first one's texture: it is reported.
+// (Painters are compared by their source: two that differ only in a captured value are not told apart.)
+const CLASH = new Set();
+export function defMat(key, w, h, texM, paint, opts = {}) {
+  const d = DEFS[key];
+  if (!d) DEFS[key] = { w, h, texM, paint, opts };
+  else if (!CLASH.has(key) && (d.w !== w || d.h !== h || String(d.texM) !== String(texM) || String(d.paint) !== String(paint) || JSON.stringify(d.opts) !== JSON.stringify(opts))) { CLASH.add(key); console.warn(`defMat: material key "${key}" is defined twice with different settings, the first definition is used`); }
+}
 function getMat(key) {
   if (CACHE[key]) return CACHE[key];
   const d = DEFS[key]; let map = null;
   if (d.paint) {
     const cv = document.createElement('canvas'); cv.width = d.w; cv.height = d.h;
-    d.paint(cv.getContext('2d'), d.w, d.h);
-    if (WEATHER.test(key) && d.w >= 96) weather(cv.getContext('2d'), d.w, d.h, key);
-    map = freeCanvas(new THREE.CanvasTexture(cv), d.paint); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
+    const coat = coatOf(key, d.w), paint = coat ? (g, w, h) => { d.paint(g, w, h); weather(g, w, h, key, coat); } : d.paint;   // (the coat is part of the painter, so a repaint keeps it)
+    paint(cv.getContext('2d'), d.w, d.h);
+    map = freeCanvas(new THREE.CanvasTexture(cv), paint); map.wrapS = map.wrapT = THREE.RepeatWrapping; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
   }
   const { noShadow, ...mo } = d.opts;
   return CACHE[key] = new THREE.MeshStandardMaterial({ map, vertexColors: true, roughness: 0.92, metalness: 0, ...mo });
@@ -66,6 +81,14 @@ const GEO = {};
 const geo = (k, f) => GEO[k] || (GEO[k] = f());
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _c = new THREE.Color();
 
+// swaps the second and third corner of every triangle of a non-indexed geometry
+function rewind(g) {
+  for (const a of Object.values(g.attributes)) {
+    const v = a.array, s = a.itemSize;
+    for (let i = s; i < v.length; i += 3 * s) for (let k = i; k < i + s; k++) { const t = v[k]; v[k] = v[k + s]; v[k + s] = t; }
+  }
+}
+
 // o: p [x,y,z], ry/rx/rz (YXZ), s [sx,sy,sz], M parent matrix, c tint, uv 'world' | 'keep' (uvk, uvo), noao
 export function part(key, g0, o = {}) {
   if (!DEFS[key]) throw new Error('no material ' + key);
@@ -75,6 +98,7 @@ export function part(key, g0, o = {}) {
   _m.compose(V3(o.p || [0, 0, 0]), _q, V3(o.s || [1, 1, 1]));
   if (o.M) _m.premultiply(o.M);
   g.applyMatrix4(_m);
+  if (_m.determinant() < 0) rewind(g);   // a mirrored transform (a negative scale, which bx() gives for a range written from the high end) turns the triangles inside out; applyMatrix4 gets the normals right
   const pos = g.attributes.position, nor = g.attributes.normal, n = pos.count;
   const uv = new Float32Array(n * 2), col = new Float32Array(n * 3);
   const tm = DEFS[key].texM;
@@ -101,7 +125,7 @@ export function part(key, g0, o = {}) {
 
 // ---------- primitives ----------
 export const box = (key, sx, sy, sz, o = {}) => part(key, UB, { ...o, s: [sx, sy, sz] });
-// axis-aligned box in the frame M, from (x0,y0,z0) to (x1,y1,z1)
+// axis-aligned box in the frame M, from (x0,y0,z0) to (x1,y1,z1), each range written either way round
 export const bx = (key, M, x0, x1, y0, y1, z0, z1, o = {}) => box(key, x1 - x0, y1 - y0, z1 - z0, { M, p: [(x0 + x1) / 2, y0, (z0 + z1) / 2], ...o });
 export function cyl(key, rt, rb, h, seg, o = {}) {
   const g = new THREE.CylinderGeometry(rt, rb, h, seg, 1, !!o.open, o.t0 || 0, o.tl || 2 * PI); g.translate(0, h / 2, 0);
